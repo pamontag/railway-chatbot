@@ -9,7 +9,7 @@ using railwaychatbot.AIEngine.Model;
 
 namespace railwaychatbot.AIEngine.Plugins
 {
-    public class MotoreOrarioPlugins
+    internal class MotoreOrarioPlugins
     {
 
         // Mock Data
@@ -34,6 +34,17 @@ namespace railwaychatbot.AIEngine.Plugins
             new TrainModel { ElencoStazioniIntermedie = new List<StationModel> { new StationModel { City = "Milano", Id = 1, Name = "Milano Centrale" }, new StationModel { City = "Firenze", Id = 3, Name = "Firenze Santa Maria Novella" } }, Id = 2, OrarioArrivo = new DateTime(DateTime.Now.Year,DateTime.Now.Month,DateTime.Now.Day,14,30,00), OrarioPartenza = new DateTime(DateTime.Now.Year,DateTime.Now.Month,DateTime.Now.Day,10,30,00), StazioneArrivo = new StationModel { City = "Firenze", Id = 3, Name = "Firenze Santa Maria Novella" }, StazionePartenza = new StationModel { City = "Milano", Id = 4999, Name = "Milano Centrale" } },
             new TrainModel { ElencoStazioniIntermedie = new List<StationModel> { new StationModel { City = "Milano", Id = 1, Name = "Milano Centrale" }, new StationModel { City = "Napoli", Id = 4, Name = "Napoli Centrale" } }, Id = 3, OrarioArrivo = new DateTime(DateTime.Now.Year,DateTime.Now.Month,DateTime.Now.Day,18,30,00), OrarioPartenza = new DateTime(DateTime.Now.Year,DateTime.Now.Month,DateTime.Now.Day,14,30,00), StazioneArrivo = new StationModel { City = "Napoli", Id = 4, Name = "Napoli Centrale" }, StazionePartenza = new StationModel { City = "Milano", Id = 3215, Name = "Milano Centrale" } },
             new TrainModel { ElencoStazioniIntermedie= new List<StationModel> { new StationModel { City = "Milano", Id = 1, Name = "Milano Centrale" }, new StationModel { City = "Torino", Id = 5, Name = "Torino Porta Nuova" } }, Id = 4, OrarioArrivo = new DateTime(DateTime.Now.Year,DateTime.Now.Month,DateTime.Now.Day,16,30,00), OrarioPartenza = new DateTime(DateTime.Now.Year,DateTime.Now.Month,DateTime.Now.Day,12,30,00), StazioneArrivo = new StationModel { City = "Torino", Id = 5, Name = "Torino Porta Nuova" }, StazionePartenza = new StationModel { City = "Milano", Id = 3674, Name = "Milano Centrale" } }
+        };
+
+        private readonly List<WeatherModel> _weather = new()
+        {
+            new WeatherModel { City = "Milano", Temperature = 20, Weather = "Soleggiato" },
+            new WeatherModel { City = "Roma", Temperature = 25, Weather = "Soleggiato" },
+            new WeatherModel { City = "Firenze", Temperature = 22, Weather = "Soleggiato" },
+            new WeatherModel { City = "Napoli", Temperature = 28, Weather = "Soleggiato" },
+            new WeatherModel { City = "Torino", Temperature = 18, Weather = "Soleggiato" },
+            new WeatherModel { City = "Venezia", Temperature = 21, Weather = "Soleggiato" },
+            new WeatherModel { City = "Bologna", Temperature = 23, Weather = "Soleggiato" }
         };
 
         [KernelFunction("get_today")]
@@ -69,6 +80,15 @@ namespace railwaychatbot.AIEngine.Plugins
             } 
             await Task.CompletedTask;  // This line removes the warning
             return trains;
+        }
+
+        [KernelFunction("get_weather_by_city")]
+        [Description("Ottieni le previsioni meteo per una città specifica")]
+        [return: Description("Le previsioni meteo per la città specificata")]
+        public async Task<List<WeatherModel>> GetWeatherByCityAsync(string city)
+        {
+            await Task.CompletedTask; // This line removes the warning
+            return this._weather.Where(weather => weather.City == city || String.IsNullOrWhiteSpace(city)).ToList();
         }
     }
 }

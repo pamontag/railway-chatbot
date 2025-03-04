@@ -38,6 +38,7 @@ namespace railwaychatbot.AIEngine.Plugins
         [return: Description("Le previsioni meteo per la città specificata")]
         public async Task<List<WeatherModel>> GetWeatherByCityAsync(string city)
         {
+            await Task.CompletedTask; // This line removes the warning
             return this._weather.Where(weather => weather.City == city || String.IsNullOrWhiteSpace(city)).ToList();
         }
        

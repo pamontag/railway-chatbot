@@ -14,6 +14,10 @@ using DotNetEnv;
 using railwaychatbot.AIEngine.Plugins;
 using railwaychatbot.AIEngine;
 using railwaychatbot.AIEngine.Impl;
+using railwaychatbot.ConsoleApp;
+using System.Text.Json;
+using System.Text;
+using Azure;
 
 string projectRoot;
 
@@ -44,6 +48,23 @@ if (!File.Exists(envFilePath))
     throw new FileNotFoundException($"File not found: {envFilePath}");
 }
 
+Console.WriteLine("Select the strategy to use:");
+Console.WriteLine("1. MotoreOrarioAgent");
+Console.WriteLine("2. MotoreOrarioStreamingAgent");
+Console.WriteLine("3. MotoreOrarioGroupAgent");
+Console.WriteLine("4. MotoreOrarioGroupStreamingAgent");
+Console.WriteLine("5. MotoreOrarioStreamingAgentFunction");
+Console.WriteLine("6. MotoreOrarioGroupStreamingAgentFunction");
+var strategy = Console.ReadLine();
+// check if the strategy input is in the enum Strategy
+Strategy selectedStrategy;
+if (!Enum.TryParse<Strategy>(strategy, out selectedStrategy))
+{
+    Console.WriteLine("Invalid strategy selected. Please select a valid strategy.");
+    return;
+}
+
+
 // Load the environment variables from the .env file
 Env.Load(envFilePath);
 
@@ -51,10 +72,13 @@ Env.Load(envFilePath);
 var modelId = Env.GetString("AZURE_OPENAI_CHAT_DEPLOYMENT_NAME");
 var endpoint = Env.GetString("AZURE_OPENAI_ENDPOINT");
 var apiKey = Env.GetString("AZURE_OPENAI_API_KEY");
+var functionMotoreAgentEndpoint = Env.GetString("AZURE_FUNCTION_MOTOREAGENTFUNCTION_ENDPOINT");
+var functionMotoreAgentGroupEndpoint = Env.GetString("AZURE_FUNCTION_MOTOREAGENTGROUPFUNCTION_ENDPOINT");
+HttpClient httpClient = new HttpClient();
 
 Console.WriteLine($"AZURE_OPENAI_ENDPOINT: {endpoint}\nAZURE_OPENAI_CHAT_DEPLOYMENT_NAME: {modelId}");
 
-IAIEngine aiengine = new AIEngine(modelId,endpoint,apiKey);
+IAIEngine aiengine = new AIEngine(modelId, endpoint, apiKey);
 
 // Create a history store the conversation
 var history = new ChatHistory();
@@ -73,15 +97,90 @@ do
     if (userInput != null)
     {
         history.AddUserMessage(userInput);
-        // await foreach (StreamingChatMessageContent response in aiengine.InvokeMotoreOrarioGroupAgentStreaming(history))
-        await foreach (ChatMessageContent response in aiengine.InvokeMotoreOrarioGroupAgent(history))
-        {
-            Console.WriteLine($"{response.Content}");
-            
-            // Add the message from the agent to the chat history
-            history.AddMessage(response.Role, response.Content ?? string.Empty);
-        }
+        
 
+        switch (selectedStrategy)
+        {
+            case Strategy.MotoreOrarioAgent:
+                await foreach (ChatMessageContent response in aiengine.InvokeMotoreOrarioAgent(history))
+                {
+                    Console.WriteLine($"{response.Content}");
+
+                    // Add the message from the agent to the chat history
+                    history.AddMessage(response.Role, response.Content ?? string.Empty);
+                }
+                break;
+            case Strategy.MotoreOrarioStreamingAgent:
+                await foreach (StreamingChatMessageContent response in aiengine.InvokeMotoreOrarioAgentStreaming(history))
+                {
+                    Console.Write($"{response.Content}");
+                    // Add the message from the agent to the chat history
+                    history.AddMessage(response.Role.Value, response.Content ?? string.Empty);
+                }
+                Console.WriteLine();
+                break;
+            case Strategy.MotoreOrarioGroupAgent:
+                await foreach (ChatMessageContent response in aiengine.InvokeMotoreOrarioGroupAgent(history))
+                {
+                    Console.WriteLine($"{response.Content}");
+                    // Add the message from the agent to the chat history
+                    history.AddMessage(response.Role, response.Content ?? string.Empty);
+                }
+                break;
+            case Strategy.MotoreOrarioGroupStreamingAgent:
+                await foreach (StreamingChatMessageContent response in aiengine.InvokeMotoreOrarioGroupAgentStreaming(history))
+                {
+                    Console.Write($"{response.Content}");
+                    // Add the message from the agent to the chat history
+                    history.AddMessage(response.Role.Value, response.Content ?? string.Empty);
+                }
+                Console.WriteLine();
+                break;
+            case Strategy.MotoreOrarioStreamingAgentFunction:
+                var message = new HttpRequestMessage(HttpMethod.Post, functionMotoreAgentEndpoint);
+                message.Content = new StringContent(JsonSerializer.Serialize(history), Encoding.UTF8, "application/json");
+                var httpresponse = await httpClient.SendAsync(message, HttpCompletionOption.ResponseHeadersRead);
+                using (var responseStream = await httpresponse.Content.ReadAsStreamAsync())
+                using (var streamReader = new StreamReader(responseStream))
+                {
+                    while (!streamReader.EndOfStream)
+                    {
+                        var line = await streamReader.ReadLineAsync();
+                        if (!string.IsNullOrWhiteSpace(line))
+                        {
+                            var chunk = JsonSerializer.Deserialize<StreamingChatMessageContent>(line);
+                            Console.Write($"{chunk.Content}");
+                            history.AddMessage(chunk.Role.Value, chunk.Content ?? string.Empty);
+                        }
+                    }
+                }
+                Console.WriteLine();
+                break;
+            case Strategy.MotoreOrarioGroupStreamingAgentFunction:
+                var messageGroup = new HttpRequestMessage(HttpMethod.Post, functionMotoreAgentGroupEndpoint);
+                messageGroup.Content = new StringContent(JsonSerializer.Serialize(history), Encoding.UTF8, "application/json");
+                var httpresponseGroup = await httpClient.SendAsync(messageGroup, HttpCompletionOption.ResponseHeadersRead);
+                using (var responseStream = await httpresponseGroup.Content.ReadAsStreamAsync())
+                using (var streamReader = new StreamReader(responseStream))
+                {
+                    while (!streamReader.EndOfStream)
+                    {
+                        var line = await streamReader.ReadLineAsync();
+                        if (!string.IsNullOrWhiteSpace(line))
+                        {
+                            var chunk = JsonSerializer.Deserialize<StreamingChatMessageContent>(line);
+                            Console.Write($"{chunk.Content}");
+                            history.AddMessage(chunk.Role.Value, chunk.Content ?? string.Empty);
+                        }
+                    }
+                }
+                Console.WriteLine();
+                break;
+            default:
+                Console.WriteLine("Invalid strategy selected. Please select a valid strategy.");
+                break;
+
+        }
     }
 } while (!string.IsNullOrWhiteSpace(userInput) && !userInput.Trim().Equals("EXIT", StringComparison.OrdinalIgnoreCase));
 #pragma warning restore CS8602 // Dereference of a possibly null reference.

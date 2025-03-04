@@ -14,7 +14,7 @@ namespace railwaychatbot.AIEngine.Impl
     {
 
         private Kernel _kernel;
-        private ChatCompletionAgent _motoreOrarioAgent;        
+        private ChatCompletionAgent _motoreOrarioAgent;
 #pragma warning disable SKEXP0110
         private AgentGroupChat _motoreOrarioGroupAgent;
         public AIEngine(string modelId, string endpoint, string apiKey)
@@ -38,19 +38,21 @@ namespace railwaychatbot.AIEngine.Impl
         }
 
         public IAsyncEnumerable<StreamingChatMessageContent> InvokeMotoreOrarioAgentStreaming(ChatHistory history)
-        {            
+        {
             return _motoreOrarioAgent.InvokeStreamingAsync(history);
         }
 
         public IAsyncEnumerable<ChatMessageContent> InvokeMotoreOrarioGroupAgent(ChatHistory history)
         {
             // _motoreOrarioGroupAgent.ResetAsync();
+            _motoreOrarioGroupAgent.IsComplete = false;
             _motoreOrarioGroupAgent.AddChatMessages(history);
             return _motoreOrarioGroupAgent.InvokeAsync();
         }
         public IAsyncEnumerable<StreamingChatMessageContent> InvokeMotoreOrarioGroupAgentStreaming(ChatHistory history)
         {
             // _motoreOrarioGroupAgent.ResetAsync();
+            _motoreOrarioGroupAgent.IsComplete = false;
             _motoreOrarioGroupAgent.AddChatMessages(history);
             return _motoreOrarioGroupAgent.InvokeStreamingAsync();
         }
@@ -141,9 +143,10 @@ namespace railwaychatbot.AIEngine.Impl
 #pragma warning disable SKEXP0110  
             KernelFunction selectionFunction =
             AgentGroupChat.CreatePromptFunctionForStrategy(
-                $$$"""                                
+                $$$"""  
+                Esamina la seguente storia di messaggi e scegli il prossimo partecipante in base all'argomento della conversazione.
 
-                Scegli solo tra questi partecipanti:
+                Scegli tra questi partecipanti:
                 - {{{conversationalAgentName}}}
                 - {{{stationExpertAgentName}}}
                 - {{{trainScheduleExpertAgentName}}}
@@ -151,13 +154,29 @@ namespace railwaychatbot.AIEngine.Impl
                 Utilizza queste regole quando devi scegliere il prossimo partecipante:
                 - Per questioni relative a stazioni è il turno di {{{stationExpertAgentName}}}.
                 - Per questioni relative a orari dei treni è il turno di  {{{trainScheduleExpertAgentName}}}.
-                - In qualsiasi altro caso risponde {{{conversationalAgentName}}}.
-                
+                - Per questioni relative al meteo e in qualsiasi altro caso risponde {{{conversationalAgentName}}}.
 
-                History:
+                Se ti vengono fatte domande relative a più argomenti per i quali ci sono esperti diversi, 
+                rispondi in base alle regole sopra indicate e contatta più agenti per formulare una risposta completa.                
+
+                Storia:
                 {{$history}}
                 """,
                 safeParameterNames: "history");
+
+            const string TerminationToken = "yes";
+
+            KernelFunction terminationFunction =
+                AgentGroupChat.CreatePromptFunctionForStrategy(
+                    $$$"""
+                Determina se la risposta è soddisfacente o se è necessario continuare la conversazione.
+                Se la risposta è soddisfacente rispondi con una singola parola senza nessuna altra spiegazione: {{{TerminationToken}}}.
+                In caso contrario contatta gli altri agenti per formulare una risposta completa.
+
+                Storia:
+                {{$history}}
+                """,
+                            safeParameterNames: "lastmessage");
 
 #pragma warning disable SKEXP0001  
             KernelFunctionSelectionStrategy selectionStrategy =
@@ -169,13 +188,30 @@ namespace railwaychatbot.AIEngine.Impl
                   HistoryVariableName = "history",
                   // Save tokens by not including the entire history in the prompt
                   HistoryReducer = new ChatHistoryTruncationReducer(3),
-                };
+              };
+            KernelFunctionTerminationStrategy terminationStrategy = new(terminationFunction, kernel)
+            {
+                // Parse the function response.
+                ResultParser = (result) => result.GetValue<string>()?.Contains(TerminationToken, StringComparison.OrdinalIgnoreCase) ?? false,
+                // The prompt variable name for the history argument.
+                HistoryVariableName = "history",
+                // Save tokens by not including the entire history in the prompt
+                HistoryReducer = new ChatHistoryTruncationReducer(3),
+
+                MaximumIterations = 4,
+
+                Agents = [conversationalAgent, stationExpertAgent, trainScheduleExpertAgent]
+            };
+
 
             AgentGroupChat chat =
-    new(conversationalAgent, stationExpertAgent, trainScheduleExpertAgent)
-    {
-        ExecutionSettings = new() { SelectionStrategy = selectionStrategy }
-    };
+            new(conversationalAgent, stationExpertAgent, trainScheduleExpertAgent)
+            {
+                ExecutionSettings = new() { 
+                    SelectionStrategy = selectionStrategy
+                   // , TerminationStrategy = terminationStrategy 
+                }
+            };
 
             return chat;
 
