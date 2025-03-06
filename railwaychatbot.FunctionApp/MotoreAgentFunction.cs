@@ -27,13 +27,13 @@ namespace railwaychatbot.FunctionApp
 
             var modelId = Environment.GetEnvironmentVariable("AZURE_OPENAI_CHAT_DEPLOYMENT_NAME");
             var endpoint = Environment.GetEnvironmentVariable("AZURE_OPENAI_ENDPOINT");
-            var apiKey = Environment.GetEnvironmentVariable("AZURE_OPENAI_API_KEY");
+            var apiKey = Environment.GetEnvironmentVariable("AZURE_OPENAI_API_KEY"); 
 
             _logger.LogInformation(modelId);
 
             ArgumentException.ThrowIfNullOrEmpty(modelId, nameof(modelId));
             ArgumentException.ThrowIfNullOrEmpty(endpoint, nameof(endpoint));
-            ArgumentException.ThrowIfNullOrEmpty(apiKey, nameof(apiKey));
+            ArgumentException.ThrowIfNullOrEmpty(apiKey, nameof(apiKey)); 
 
             string requestBody = await new StreamReader(req.Body).ReadToEndAsync();
             var history = JsonSerializer.Deserialize<ChatHistory>(requestBody);
@@ -41,7 +41,7 @@ namespace railwaychatbot.FunctionApp
             _logger.LogInformation(requestBody);
 
 
-            IAIEngine aiengine = new railwaychatbot.AIEngine.Impl.AIEngine(modelId, endpoint, apiKey);
+            IAIEngine aiengine = new railwaychatbot.AIEngine.Impl.AIEngine(modelId,  endpoint, apiKey);
 
             var data = aiengine.InvokeMotoreOrarioAgentStreaming(history);
 

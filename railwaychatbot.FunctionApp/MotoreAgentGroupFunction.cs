@@ -26,7 +26,7 @@ namespace railwaychatbot.FunctionApp
 
             var modelId = Environment.GetEnvironmentVariable("AZURE_OPENAI_CHAT_DEPLOYMENT_NAME");
             var endpoint = Environment.GetEnvironmentVariable("AZURE_OPENAI_ENDPOINT");
-            var apiKey = Environment.GetEnvironmentVariable("AZURE_OPENAI_API_KEY");
+            var apiKey = Environment.GetEnvironmentVariable("AZURE_OPENAI_API_KEY"); 
 
             _logger.LogInformation(modelId);
 
@@ -40,7 +40,7 @@ namespace railwaychatbot.FunctionApp
             _logger.LogInformation(requestBody);
 
 
-            IAIEngine aiengine = new railwaychatbot.AIEngine.Impl.AIEngine(modelId, endpoint, apiKey);
+            IAIEngine aiengine = new railwaychatbot.AIEngine.Impl.AIEngine(modelId,   endpoint, apiKey);
             var response = req.HttpContext.Response;
             response.StatusCode = (int)HttpStatusCode.OK;
             response.ContentType = "application/json";

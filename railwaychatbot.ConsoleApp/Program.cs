@@ -55,6 +55,7 @@ Console.WriteLine("3. MotoreOrarioGroupAgent");
 Console.WriteLine("4. MotoreOrarioGroupStreamingAgent");
 Console.WriteLine("5. MotoreOrarioStreamingAgentFunction");
 Console.WriteLine("6. MotoreOrarioGroupStreamingAgentFunction");
+Console.WriteLine("7. MotoreOrarioGroupAgentRealTimeAudio");
 var strategy = Console.ReadLine();
 // check if the strategy input is in the enum Strategy
 Strategy selectedStrategy;
@@ -70,6 +71,7 @@ Env.Load(envFilePath);
 
 // Populate values from your OpenAI deployment
 var modelId = Env.GetString("AZURE_OPENAI_CHAT_DEPLOYMENT_NAME");
+var modelRealTimeAudioId = Env.GetString("AZURE_OPENAI_REALTIMEAUDIO_DEPLOYMENT_NAME");
 var endpoint = Env.GetString("AZURE_OPENAI_ENDPOINT");
 var apiKey = Env.GetString("AZURE_OPENAI_API_KEY");
 var functionMotoreAgentEndpoint = Env.GetString("AZURE_FUNCTION_MOTOREAGENTFUNCTION_ENDPOINT");
@@ -97,7 +99,7 @@ do
     if (userInput != null)
     {
         history.AddUserMessage(userInput);
-        
+        StringBuilder sb = new StringBuilder();
 
         switch (selectedStrategy)
         {
@@ -114,9 +116,10 @@ do
                 await foreach (StreamingChatMessageContent response in aiengine.InvokeMotoreOrarioAgentStreaming(history))
                 {
                     Console.Write($"{response.Content}");
-                    // Add the message from the agent to the chat history
-                    history.AddMessage(response.Role.Value, response.Content ?? string.Empty);
+                    sb.Append(response.Content);
                 }
+                // Add the message from the agent to the chat history
+                history.AddMessage(AuthorRole.Assistant, sb.ToString() ?? string.Empty);
                 Console.WriteLine();
                 break;
             case Strategy.MotoreOrarioGroupAgent:
@@ -131,9 +134,10 @@ do
                 await foreach (StreamingChatMessageContent response in aiengine.InvokeMotoreOrarioGroupAgentStreaming(history))
                 {
                     Console.Write($"{response.Content}");
-                    // Add the message from the agent to the chat history
-                    history.AddMessage(response.Role.Value, response.Content ?? string.Empty);
+                    sb.Append(response.Content); 
                 }
+                // Add the message from the agent to the chat history
+                history.AddMessage(AuthorRole.Assistant, sb.ToString() ?? string.Empty);
                 Console.WriteLine();
                 break;
             case Strategy.MotoreOrarioStreamingAgentFunction:
@@ -150,10 +154,11 @@ do
                         {
                             var chunk = JsonSerializer.Deserialize<StreamingChatMessageContent>(line);
                             Console.Write($"{chunk.Content}");
-                            history.AddMessage(chunk.Role.Value, chunk.Content ?? string.Empty);
+                            
                         }
                     }
                 }
+                history.AddMessage(AuthorRole.Assistant, sb.ToString() ?? string.Empty);
                 Console.WriteLine();
                 break;
             case Strategy.MotoreOrarioGroupStreamingAgentFunction:
@@ -170,11 +175,15 @@ do
                         {
                             var chunk = JsonSerializer.Deserialize<StreamingChatMessageContent>(line);
                             Console.Write($"{chunk.Content}");
-                            history.AddMessage(chunk.Role.Value, chunk.Content ?? string.Empty);
+                            sb.Append(chunk.Content);
                         }
                     }
+                    history.AddMessage(AuthorRole.Assistant, sb.ToString() ?? string.Empty);
                 }
                 Console.WriteLine();
+                break;
+            case Strategy.MotoreOrarioGroupAgentRealTimeAudio:
+                throw new NotImplementedException();
                 break;
             default:
                 Console.WriteLine("Invalid strategy selected. Please select a valid strategy.");
