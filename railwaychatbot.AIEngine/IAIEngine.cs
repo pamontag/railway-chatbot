@@ -9,5 +9,7 @@ namespace railwaychatbot.AIEngine
         IAsyncEnumerable<StreamingChatMessageContent> InvokeMotoreOrarioAgentStreaming(ChatHistory history);
         IAsyncEnumerable<ChatMessageContent> InvokeMotoreOrarioGroupAgent(ChatHistory history);
         IAsyncEnumerable<StreamingChatMessageContent> InvokeMotoreOrarioGroupAgentStreaming(ChatHistory history);
+        Task<string> GetTextFromAudio(byte[]? audio);
+        Task<byte[]> GetAudioFromText(string message);
     }
 }

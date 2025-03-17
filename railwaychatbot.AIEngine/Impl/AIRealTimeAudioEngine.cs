@@ -10,6 +10,8 @@ using System.Threading.Tasks;
 #pragma warning disable OPENAI002
 namespace railwaychatbot.AIEngine.Impl
 {
+    // https://github.com/Azure/app-service-linux-docs/blob/master/HowTo/WebSockets/use_websockets_with_dotnet.md
+    // https://github.com/Azure-Samples/aoai-realtime-audio-sdk/blob/main/dotnet/samples/console-from-mic/Program.cs
     public class AIRealTimeAudioEngine
     {
 

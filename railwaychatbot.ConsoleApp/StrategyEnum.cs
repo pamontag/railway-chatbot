@@ -15,7 +15,8 @@ namespace railwaychatbot.ConsoleApp
         MotoreOrarioGroupStreamingAgent = 4,
         MotoreOrarioStreamingAgentFunction = 5,
         MotoreOrarioGroupStreamingAgentFunction = 6,
-        MotoreOrarioGroupAgentRealTimeAudio = 7
+        MotoreOrarioAudioToTextAgent = 7,
+        MotoreOrarioGroupAgentRealTimeAudio = 8
     }
 
 }

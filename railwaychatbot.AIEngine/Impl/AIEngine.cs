@@ -1,25 +1,37 @@
-﻿using Azure.AI.OpenAI;
+﻿using Azure;
+using Azure.AI.OpenAI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.Agents;
 using Microsoft.SemanticKernel.Agents.Chat;
+using Microsoft.SemanticKernel.AudioToText;
 using Microsoft.SemanticKernel.ChatCompletion;
 using Microsoft.SemanticKernel.Connectors.AzureOpenAI;
 using Microsoft.SemanticKernel.Connectors.OpenAI;
+using Microsoft.SemanticKernel.TextToAudio;
+using OpenAI;
+using OpenAI.Audio;
 using OpenAI.RealtimeConversation;
 using railwaychatbot.AIEngine.Plugins;
 using System.ClientModel;
-
+using System.Text;
+#pragma warning disable SKEXP0110
+#pragma warning disable SKEXP0010
+#pragma warning disable SKEXP0001
+#pragma warning disable OPENAI002
 namespace railwaychatbot.AIEngine.Impl
 {
     public class AIEngine : IAIEngine
     {
 
         private Kernel _kernel;
+        private AzureOpenAIClient _azureOpenAiClient;
         private ChatCompletionAgent _motoreOrarioAgent;
-#pragma warning disable SKEXP0110
+
         private AgentGroupChat _motoreOrarioGroupAgent;
+        private const string AUDIO_TO_TEXT_MODEL = "whisper";
+        private const string TEXT_TO_AUDIO_MODEL = "tts";
         public AIEngine(string modelId, string endpoint, string apiKey)
         {
             // Create the kernel builder with the pointer to Azure OpenAI
@@ -30,6 +42,8 @@ namespace railwaychatbot.AIEngine.Impl
 
             // Build the kernel
             _kernel = builder.Build();
+
+            _azureOpenAiClient = new AzureOpenAIClient(new Uri(endpoint), new AzureKeyCredential(apiKey));
 
             _motoreOrarioAgent = CreateMotoreOrarioAgent(_kernel);
             _motoreOrarioGroupAgent = CreateMotoreOrarioAgentGroup(_kernel);
@@ -60,10 +74,31 @@ namespace railwaychatbot.AIEngine.Impl
             return _motoreOrarioGroupAgent.InvokeStreamingAsync();
         }
 
-#pragma warning disable OPENAI002
+        public async Task<string> GetTextFromAudio(byte[]? audio)
+        {
+            var audioClient = _azureOpenAiClient.GetAudioClient(AUDIO_TO_TEXT_MODEL);
+            var sb = new StringBuilder();
+            using (MemoryStream audioStream = new MemoryStream(audio))
+            {
+                audioStream.Position = 0;
+                var result = await audioClient.TranscribeAudioAsync(audio: audioStream, audioFilename: "message.wav");
+                foreach(var item in result.Value.Text)
+                {
+                    sb.Append(item);
+                }
+            }
+            // Convert audio to text
+            return sb.ToString();
+        }
 
-        
+        public async Task<byte[]> GetAudioFromText(string message)
+        {
+            var audioClient = _azureOpenAiClient.GetAudioClient(TEXT_TO_AUDIO_MODEL);
 
+            var result = await audioClient.GenerateSpeechAsync(message, GeneratedSpeechVoice.Alloy);
+
+            return result.Value.ToArray();
+        }
 
 
         private ChatCompletionAgent CreateMotoreOrarioAgent(Kernel kernel)
