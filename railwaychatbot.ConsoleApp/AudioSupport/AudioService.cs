@@ -1,7 +1,9 @@
 ﻿using NAudio.Wave;
+using NAudio.Wave.SampleProviders;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Media;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -16,6 +18,83 @@ namespace railwaychatbot.ConsoleApp.AudioSupport
         private readonly MemoryStream m_MicrophoneStream = new();
 
         private WaveInEvent? m_Windows_WaveInEvent;
+
+        public void PlayWavAudio(byte[] audioData)
+        {
+            if (OperatingSystem.IsWindows())
+            {
+                using (var waveOut = new WaveOutEvent())
+                {
+                    using (var memoryStream = new MemoryStream(audioData))
+                    {
+                        // Convert the byte array to a stream and play it
+                        memoryStream.Position = 0;
+                        using (var audioFileReader = new CueWaveFileReader(memoryStream))
+                        {
+                            waveOut.Init(audioFileReader);
+                            waveOut.Play();
+                            while (waveOut.PlaybackState == PlaybackState.Playing)
+                            {
+                                System.Threading.Thread.Sleep(100);
+                            }
+                        }
+                    }
+                }
+            }
+            else
+            {
+                //Linux stuff for later
+            }
+        }
+
+        public void PlayMediaFoundationAudio(byte[] audioData)
+        {
+            if (OperatingSystem.IsWindows())
+            {
+                using (var waveOut = new WaveOutEvent())
+                {
+
+                    using (var memoryStream = new MemoryStream(audioData))
+                    {
+
+                        using (var audioFileReader = new StreamMediaFoundationReader(memoryStream))
+                        {
+                            waveOut.Init(audioFileReader);
+                            waveOut.Play();
+                            while (waveOut.PlaybackState == PlaybackState.Playing)
+                            {
+                                System.Threading.Thread.Sleep(100);
+                            }
+                        }
+                    }
+                    
+                }
+            }
+            else
+            {
+                //Linux stuff for later
+            }
+        }
+
+        public void PlayPcm16Audio(byte[] audioData)
+        {
+            if (OperatingSystem.IsWindows())
+            {
+                SoundPlayer soundPlayer = new SoundPlayer();
+                soundPlayer.Stream = new MemoryStream(audioData);
+                soundPlayer.Load();
+                soundPlayer.PlaySync();
+                // Wait for the sound to finish playing
+                while (soundPlayer.IsLoadCompleted == false)
+                {
+                    System.Threading.Thread.Sleep(100);
+                }
+            }
+            else
+            {
+                //Linux stuff for later
+            }
+        }
 
         public void PlayAudio(byte[] audioData)
         {

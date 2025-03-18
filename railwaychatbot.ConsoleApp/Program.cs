@@ -62,7 +62,7 @@ Console.WriteLine("5. MotoreOrarioStreamingAgentFunction");
 Console.WriteLine("6. MotoreOrarioGroupStreamingAgentFunction");
 Console.WriteLine("7. MotoreOrarioAudioToTextAgent");
 Console.WriteLine("8. MotoreOrarioAudioToTextStreamingAgent");
-Console.WriteLine("9. MotoreOrarioGroupAgentRealTimeAudio");
+Console.WriteLine("9. MotoreOrarioGroupAgentRealTimeAudio (Not Implemented)");
 var strategy = Console.ReadLine();
 // check if the strategy input is in the enum Strategy
 Strategy selectedStrategy;
@@ -88,6 +88,7 @@ HttpClient httpClient = new HttpClient();
 Console.WriteLine($"AZURE_OPENAI_ENDPOINT: {endpoint}\nAZURE_OPENAI_CHAT_DEPLOYMENT_NAME: {modelId}");
 
 IAIEngine aiengine = new AIEngine(modelId, endpoint, apiKey);
+IAIRealTimeAudioEngine airealtimeaudioengine = new AIRealTimeAudioEngine(modelRealTimeAudioId, endpoint, apiKey);
 
 // Create a history store the conversation
 var history = new ChatHistory();
@@ -95,6 +96,7 @@ SpeakerOutput speakerOutput = new();
 AudioService audioService = new AudioService();
 // Initiate a back-and-forth chat
 string? userInput;
+byte[] audioStreamBytes = new byte[0];
 do
 #pragma warning disable CS8602 // Dereference of a possibly null reference.
 {
@@ -111,6 +113,17 @@ do
         var bytes = audioService.StopRecording();
         userInput = await aiengine.GetTextFromAudio(bytes);
         Console.WriteLine($"You said: {userInput}");
+    }
+    else if (selectedStrategy == Strategy.MotoreOrarioGroupAgentRealTimeAudio)
+    {
+        Console.WriteLine("Press any key to start recording your voice...");
+        Console.ReadKey();
+        Console.WriteLine("Recording...");
+        audioService.StartRecording();
+        Console.WriteLine("(press any key to exit)");
+        Console.ReadKey();
+        audioStreamBytes = audioService.StopRecording();
+        userInput = "RECORDED";
     }
     else
     {
@@ -230,7 +243,14 @@ do
                 Console.WriteLine();
                 break;
             case Strategy.MotoreOrarioGroupAgentRealTimeAudio:
-                throw new NotImplementedException();
+                using (var audioStream = new MemoryStream(audioStreamBytes))
+                {
+                    
+                    await foreach (MemoryStream response in airealtimeaudioengine.GetResponseFromAudio(audioStream))
+                    {
+                        speakerOutput.EnqueueForPlayback(new BinaryData(response.ToArray()));
+                    }
+                }
                 break;
             default:
                 Console.WriteLine("Invalid strategy selected. Please select a valid strategy.");
