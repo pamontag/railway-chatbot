@@ -13,6 +13,11 @@ using Microsoft.SemanticKernel.TextToAudio;
 using OpenAI;
 using OpenAI.Audio;
 using OpenAI.RealtimeConversation;
+using OpenTelemetry;
+using OpenTelemetry.Logs;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
 using railwaychatbot.AIEngine.Plugins;
 using System.ClientModel;
 using System.Text;
@@ -38,13 +43,50 @@ namespace railwaychatbot.AIEngine.Impl
         private const string trainScheduleExpertAgentName = "motore_orario_train_schedule_expert_agent";
         private const string trainManagerAgentName = "motore_orario_train_manager_agent";
 
-
+        private const bool ENABLE_OPENTELEMETRY_TRACING = false;
 
         public AIEngine(string modelId, string endpoint, string apiKey)
         {
             // Create the kernel builder with the pointer to Azure OpenAI
             var builder = Kernel.CreateBuilder().AddAzureOpenAIChatCompletion(modelId, endpoint, apiKey);
 
+            if (ENABLE_OPENTELEMETRY_TRACING)
+            {
+                var resourceBuilder = ResourceBuilder
+                .CreateDefault()
+                .AddService("railwaychatbot.AIEngine.Impl");
+
+                // Enable model diagnostics with sensitive data.
+                AppContext.SetSwitch("Microsoft.SemanticKernel.Experimental.GenAI.EnableOTelDiagnosticsSensitive", true);
+
+                var traceProvider = Sdk.CreateTracerProviderBuilder()
+                    .SetResourceBuilder(resourceBuilder)
+                    .AddSource("Microsoft.SemanticKernel*")
+                    .AddConsoleExporter()
+                    .Build();
+
+                var meterProvider = Sdk.CreateMeterProviderBuilder().SetResourceBuilder(resourceBuilder)
+                    .AddMeter("Microsoft.SemanticKernel*")
+                    .AddConsoleExporter()
+                    .Build();
+
+                var loggerFactory = LoggerFactory.Create(builder =>
+                {
+                    // Add OpenTelemetry as a logging provider
+                    builder.AddOpenTelemetry(options =>
+                    {
+                        options.SetResourceBuilder(resourceBuilder);
+                        options.AddConsoleExporter();
+                        // Format log messages. This is default to false.
+                        options.IncludeFormattedMessage = true;
+                        options.IncludeScopes = true;
+                    });
+                    builder.SetMinimumLevel(LogLevel.Information);
+                });
+
+                builder.Services.AddSingleton(loggerFactory);
+            }
+                            
             // Use the kernel builder to add enterprise components (for logging, in this case)
             builder.Services.AddLogging(services => services.AddConsole().SetMinimumLevel(LogLevel.Warning));
 
@@ -83,7 +125,7 @@ namespace railwaychatbot.AIEngine.Impl
                 // Check if the chunk is from the train manager agent, the only that has the role of wrap up the conversation to the user
                 if (chunk.AuthorName == trainManagerAgentName)
                     yield return chunk;
-            }           
+            }
         }
 
         public async Task<string> GetTextFromAudio(byte[]? audio)
@@ -114,7 +156,7 @@ namespace railwaychatbot.AIEngine.Impl
 
         public bool IsGroupChatComplete()
         {
-           return _motoreOrarioGroupAgent.IsComplete;           
+            return _motoreOrarioGroupAgent.IsComplete;
         }
 
         private ChatCompletionAgent CreateMotoreOrarioAgent(Kernel kernel)
@@ -144,7 +186,7 @@ namespace railwaychatbot.AIEngine.Impl
 # pragma warning disable SKEXP0110
         private AgentGroupChat CreateMotoreOrarioAgentGroup(Kernel kernel)
         {
-            
+
 
             Kernel conversationAgentKernel = kernel.Clone();
             Kernel stationExpertAgentKernel = kernel.Clone();

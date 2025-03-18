@@ -13,6 +13,7 @@
     <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="9.0.2" />
     <PackageReference Include="Microsoft.SemanticKernel" Version="1.40.1" />
     <PackageReference Include="Microsoft.SemanticKernel.Agents.Core" Version="1.40.0-preview" />
+    <PackageReference Include="OpenTelemetry.Exporter.Console" Version="1.11.2" />
   </ItemGroup>
 
 </Project>
