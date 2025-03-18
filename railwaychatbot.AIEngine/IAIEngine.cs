@@ -11,5 +11,7 @@ namespace railwaychatbot.AIEngine
         IAsyncEnumerable<StreamingChatMessageContent> InvokeMotoreOrarioGroupAgentStreaming(ChatHistory history);
         Task<string> GetTextFromAudio(byte[]? audio);
         Task<byte[]> GetAudioFromText(string message);
+
+        bool IsGroupChatComplete();
     }
 }

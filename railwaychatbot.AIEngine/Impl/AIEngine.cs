@@ -32,6 +32,14 @@ namespace railwaychatbot.AIEngine.Impl
         private AgentGroupChat _motoreOrarioGroupAgent;
         private const string AUDIO_TO_TEXT_MODEL = "whisper";
         private const string TEXT_TO_AUDIO_MODEL = "tts";
+
+        private const string conversationalAgentName = "motore_orario_conversational_agent";
+        private const string stationExpertAgentName = "motore_orario_station_expert_agent";
+        private const string trainScheduleExpertAgentName = "motore_orario_train_schedule_expert_agent";
+        private const string trainManagerAgentName = "motore_orario_train_manager_agent";
+
+
+
         public AIEngine(string modelId, string endpoint, string apiKey)
         {
             // Create the kernel builder with the pointer to Azure OpenAI
@@ -61,17 +69,21 @@ namespace railwaychatbot.AIEngine.Impl
 
         public IAsyncEnumerable<ChatMessageContent> InvokeMotoreOrarioGroupAgent(ChatHistory history)
         {
-            // _motoreOrarioGroupAgent.ResetAsync();
             _motoreOrarioGroupAgent.IsComplete = false;
             _motoreOrarioGroupAgent.AddChatMessages(history);
             return _motoreOrarioGroupAgent.InvokeAsync();
         }
-        public IAsyncEnumerable<StreamingChatMessageContent> InvokeMotoreOrarioGroupAgentStreaming(ChatHistory history)
+        public async IAsyncEnumerable<StreamingChatMessageContent> InvokeMotoreOrarioGroupAgentStreaming(ChatHistory history)
         {
-            // _motoreOrarioGroupAgent.ResetAsync();
             _motoreOrarioGroupAgent.IsComplete = false;
             _motoreOrarioGroupAgent.AddChatMessages(history);
-            return _motoreOrarioGroupAgent.InvokeStreamingAsync();
+            var data = _motoreOrarioGroupAgent.InvokeStreamingAsync();
+            await foreach (var chunk in data)
+            {
+                // Check if the chunk is from the train manager agent, the only that has the role of wrap up the conversation to the user
+                if (chunk.AuthorName == trainManagerAgentName)
+                    yield return chunk;
+            }           
         }
 
         public async Task<string> GetTextFromAudio(byte[]? audio)
@@ -82,7 +94,7 @@ namespace railwaychatbot.AIEngine.Impl
             {
                 audioStream.Position = 0;
                 var result = await audioClient.TranscribeAudioAsync(audio: audioStream, audioFilename: "message.wav");
-                foreach(var item in result.Value.Text)
+                foreach (var item in result.Value.Text)
                 {
                     sb.Append(item);
                 }
@@ -100,6 +112,10 @@ namespace railwaychatbot.AIEngine.Impl
             return result.Value.ToArray();
         }
 
+        public bool IsGroupChatComplete()
+        {
+           return _motoreOrarioGroupAgent.IsComplete;           
+        }
 
         private ChatCompletionAgent CreateMotoreOrarioAgent(Kernel kernel)
         {
@@ -128,10 +144,7 @@ namespace railwaychatbot.AIEngine.Impl
 # pragma warning disable SKEXP0110
         private AgentGroupChat CreateMotoreOrarioAgentGroup(Kernel kernel)
         {
-            var conversationalAgentName = "motore_orario_conversational_agent";
-            var stationExpertAgentName = "motore_orario_station_expert_agent";
-            var trainScheduleExpertAgentName = "motore_orario_train_schedule_expert_agent";
-            var trainManagerAgentName = "motore_orario_train_manager_agent";
+            
 
             Kernel conversationAgentKernel = kernel.Clone();
             Kernel stationExpertAgentKernel = kernel.Clone();
@@ -185,7 +198,7 @@ namespace railwaychatbot.AIEngine.Impl
 
             ChatCompletionAgent trainManagerAgent = new ChatCompletionAgent()
             {
-                Name = trainScheduleExpertAgentName,
+                Name = trainManagerAgentName,
                 Instructions = $$$"""
                                     Sei il manager della gestione ferriovaria .La data di oggi è: {{{DateTime.Now}}}.
                                     Fai riferimento a questa data quando non è specificata la data esatta ma solo riferimenti come oggi, ieri, l'altro ieri.
@@ -196,7 +209,6 @@ namespace railwaychatbot.AIEngine.Impl
                 Arguments = kernelArguments
             };
 
-#pragma warning disable SKEXP0110  
             KernelFunction selectionFunction =
             AgentGroupChat.CreatePromptFunctionForStrategy(
                 $$$"""  
@@ -210,12 +222,12 @@ namespace railwaychatbot.AIEngine.Impl
                 - {{{trainManagerAgentName}}}
 
                 Segui sempre questi passaggi quando selezioni il partecipante successivo:
-                1) Dopo l'input dell'utente, è il turno di {{{conversationalAgentName}}}.
-                2) Dopo che {{{conversationalAgentName}}} risponde, è il turno di {{{stationExpertAgentName}}}.
-                3) Dopo che {{{stationExpertAgentName}}} risponde, è il turno di {{{trainScheduleExpertAgentName}}}.
-                4) Dopo che {{{trainScheduleExpertAgentName}}} risponde, è il turno di {{{trainManagerAgentName}}} di rivedere e approvare la risposta.
-                4) Se la risposta viene approvata, la conversazione termina.
-                5) Se il piano non viene approvato, è di nuovo il turno di {{{conversationalAgentName}}}.
+                1) Dopo l'input dell'utente, è il turno di {{{conversationalAgentName}}} di iniziare le conversazioni e eventualmente rispondere su informazioni metereologiche.
+                2) Se sono richieste informazioni sulle stazioni è il turno di {{{stationExpertAgentName}}}.
+                3) Se sono richieste informazioni sullo scheduling dei treni è il turno di {{{trainScheduleExpertAgentName}}}.
+                4) L'ultimo turno è di {{{trainManagerAgentName}}} di rivedere e approvare la risposta.
+                5) Se la risposta viene approvata, la conversazione termina.
+                6) Se il piano non viene approvato, è di nuovo il turno di {{{conversationalAgentName}}}.
 
                 Se ti vengono fatte domande relative a più argomenti per i quali ci sono esperti diversi, 
                 rispondi in base alle regole sopra indicate e contatta più agenti per formulare una risposta completa.                
@@ -231,23 +243,20 @@ namespace railwaychatbot.AIEngine.Impl
                 AgentGroupChat.CreatePromptFunctionForStrategy(
                     $$$"""
                 Determina se la risposta è soddisfacente.
-                Se la risposta è soddisfacente rispondi con una singola parola senza nessuna altra spiegazione: {{{TerminationToken}}}.
+                Se la risposta è soddisfacente rispondi con la singola parola {{{TerminationToken}}} senza nessuna altra spiegazione.
 
                 Storia:
                 {{$history}}
                 """,
-                            safeParameterNames: "lastmessage");
+                safeParameterNames: "history");
 
-#pragma warning disable SKEXP0001  
             KernelFunctionSelectionStrategy selectionStrategy =
               new(selectionFunction, kernel)
               {
-                  // Parse the function response.
-                  //ResultParser = (result) => result.GetValue<string>() ?? "UNKNOWN",
                   // The prompt variable name for the history argument.
                   HistoryVariableName = "history",
                   // Save tokens by not including the entire history in the prompt
-                  HistoryReducer = new ChatHistoryTruncationReducer(3),
+                  HistoryReducer = new ChatHistoryTruncationReducer(3)
               };
             KernelFunctionTerminationStrategy terminationStrategy = new(terminationFunction, kernel)
             {
@@ -260,17 +269,19 @@ namespace railwaychatbot.AIEngine.Impl
 
                 MaximumIterations = 10,
 
-                Agents = [trainManagerAgent]  
+                Agents = [trainManagerAgent]
             };
 
             // seguire questa guida per rivedere il modello: https://www.developerscantina.com/p/semantic-kernel-multiagents/
 
             AgentGroupChat chat =
-            new(conversationalAgent, stationExpertAgent, trainScheduleExpertAgent)
+            new(conversationalAgent, stationExpertAgent, trainScheduleExpertAgent, trainManagerAgent)
             {
-                ExecutionSettings = new() { 
+                ExecutionSettings = new()
+                {
                     SelectionStrategy = selectionStrategy
-                   , TerminationStrategy = terminationStrategy 
+                   ,
+                    TerminationStrategy = terminationStrategy
                 }
             };
 

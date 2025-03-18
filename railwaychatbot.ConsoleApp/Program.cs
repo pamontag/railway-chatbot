@@ -21,6 +21,7 @@ using NAudio;
 using NAudio.Wave;
 using railwaychatbot.ConsoleApp.AudioSupport;
 using Sprache;
+using Azure;
 
 string projectRoot;
 
@@ -31,6 +32,7 @@ DirectoryInfo baseDirectory = new(AppDomain.CurrentDomain.BaseDirectory);
 
 // retrieve the project root folder
 #pragma warning disable CS8602 // Dereference of a possibly null reference.
+#pragma warning disable SKEXP0001
 if (baseDirectory.Parent.Parent.Name == "bin")
 {
     projectRoot = baseDirectory.Parent.Parent.Parent.FullName;
@@ -59,7 +61,8 @@ Console.WriteLine("4. MotoreOrarioGroupStreamingAgent");
 Console.WriteLine("5. MotoreOrarioStreamingAgentFunction");
 Console.WriteLine("6. MotoreOrarioGroupStreamingAgentFunction");
 Console.WriteLine("7. MotoreOrarioAudioToTextAgent");
-Console.WriteLine("8. MotoreOrarioGroupAgentRealTimeAudio");
+Console.WriteLine("8. MotoreOrarioAudioToTextStreamingAgent");
+Console.WriteLine("9. MotoreOrarioGroupAgentRealTimeAudio");
 var strategy = Console.ReadLine();
 // check if the strategy input is in the enum Strategy
 Strategy selectedStrategy;
@@ -97,8 +100,8 @@ do
 {
     // Collect user input
     Console.Write("User > ");
-    if(selectedStrategy == Strategy.MotoreOrarioAudioToTextAgent)
-    { 
+    if (selectedStrategy == Strategy.MotoreOrarioAudioToTextAgent || selectedStrategy == Strategy.MotoreOrarioAudioToTextStreamingAgent)
+    {
         Console.WriteLine("Press any key to start recording your voice...");
         Console.ReadKey();
         Console.WriteLine("Recording...");
@@ -111,7 +114,6 @@ do
     }
     else
     {
-        Console.WriteLine("Type your message (or type 'EXIT' to quit):");
         userInput = Console.ReadLine();
     }
 
@@ -143,18 +145,22 @@ do
                 Console.WriteLine();
                 break;
             case Strategy.MotoreOrarioGroupAgent:
+                List<ChatMessageContent> messages = new List<ChatMessageContent>(); 
                 await foreach (ChatMessageContent response in aiengine.InvokeMotoreOrarioGroupAgent(history))
                 {
-                    Console.WriteLine($"{response.Content}");
-                    // Add the message from the agent to the chat history
-                    history.AddMessage(response.Role, response.Content ?? string.Empty);
+                    messages.Add(response);        
                 }
+                var resp = messages.LastOrDefault();
+                Console.WriteLine($"{resp.AuthorName.ToString()} - {resp.Content}");
+                // Add the message from the agent to the chat history
+                history.AddMessage(resp.Role, resp.Content ?? string.Empty);
+
                 break;
             case Strategy.MotoreOrarioGroupStreamingAgent:
                 await foreach (StreamingChatMessageContent response in aiengine.InvokeMotoreOrarioGroupAgentStreaming(history))
                 {
                     Console.Write($"{response.Content}");
-                    sb.Append(response.Content); 
+                    sb.Append(response.Content);
                 }
                 // Add the message from the agent to the chat history
                 history.AddMessage(AuthorRole.Assistant, sb.ToString() ?? string.Empty);
@@ -174,7 +180,7 @@ do
                         {
                             var chunk = JsonSerializer.Deserialize<StreamingChatMessageContent>(line);
                             Console.Write($"{chunk.Content}");
-                            
+
                         }
                     }
                 }
@@ -211,6 +217,17 @@ do
                     // Add the message from the agent to the chat history
                     history.AddMessage(response.Role, response.Content ?? string.Empty);
                 }
+                break;
+            case Strategy.MotoreOrarioAudioToTextStreamingAgent:
+                await foreach (StreamingChatMessageContent response in aiengine.InvokeMotoreOrarioGroupAgentStreaming(history))
+                {
+                    Console.Write($"{response.Content}");
+                    sb.Append(response.Content);
+                }
+                var audioStreaming = await aiengine.GetAudioFromText(sb.ToString());
+                audioService.PlayAudio(audioStreaming);
+                history.AddMessage(AuthorRole.Assistant, sb.ToString() ?? string.Empty);
+                Console.WriteLine();
                 break;
             case Strategy.MotoreOrarioGroupAgentRealTimeAudio:
                 throw new NotImplementedException();
