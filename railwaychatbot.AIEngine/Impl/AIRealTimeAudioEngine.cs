@@ -19,11 +19,24 @@ namespace railwaychatbot.AIEngine.Impl
     // https://github.com/Azure-Samples/aoai-realtime-audio-sdk/blob/main/dotnet/samples/console-from-mic/Program.cs
     public class AIRealTimeAudioEngine : IAIRealTimeAudioEngine
     {
-
+        private const string tool_finish_conversation_name = "user_wants_to_finish_conversation";
         private Kernel _kernel;
         private string _modelRealTimeAudioId;
         private string _endpoint;
         private string _apiKey;
+        private bool _isProcessing = true;
+
+        RealtimeConversationSession _realtimeConversationClientSession;
+        Dictionary<string, MemoryStream> outputAudioStreamsById = [];
+        Dictionary<string, StringBuilder> functionArgumentBuildersById = [];
+
+        
+
+        // Define the event delegate
+        public delegate void StreamingDeltaResponseHandler(BinaryData audioBytes);
+
+        // Define the event
+        public event StreamingDeltaResponseHandler? OnStreamingDeltaResponse;
 
         public AIRealTimeAudioEngine(string modelRealTimeAudioId, string endpoint, string apiKey)
         {
@@ -32,14 +45,43 @@ namespace railwaychatbot.AIEngine.Impl
             _apiKey = apiKey;
         }
 
-        public async IAsyncEnumerable<Stream> GetResponseFromAudio(Stream audio)
+        public bool IsProcessing() { return _isProcessing; }
+
+        public async Task InitSession()
         {
-            var _realtimeConversationClientSession = await GetConfiguredClientForAzureOpenAIWithKey(_endpoint, _modelRealTimeAudioId, _apiKey);
+            _realtimeConversationClientSession = await GetConfiguredClientForAzureOpenAIWithKeyAsync(_endpoint, _modelRealTimeAudioId, _apiKey);
+            // Start the background task to process conversation updates
+            _ = Task.Run(() => ProcessConversationUpdatesAsync(false));
+        }
+
+        public async Task SendAudioAsync(Stream audio)
+        {
+            if(_realtimeConversationClientSession == null)
+            {
+                await InitSession();
+            }  
+            await _realtimeConversationClientSession.SendInputAudioAsync(audio);
+        }
+
+        public async IAsyncEnumerable<Stream> GetSingleResponseFromAudio(Stream audio)
+        {
+            await InitSession();
             await _realtimeConversationClientSession.SendInputAudioAsync(audio);
 
-            Dictionary<string, MemoryStream> outputAudioStreamsById = [];
-            Dictionary<string, StringBuilder> functionArgumentBuildersById = [];
 
+            await ProcessConversationUpdatesAsync(true);
+
+            // Output the size of received audio data and dispose streams.
+            foreach ((string itemId, Stream outputAudioStream) in outputAudioStreamsById)
+            {
+                Console.WriteLine($"Raw audio output for {itemId}: {outputAudioStream.Length} bytes");
+
+                yield return outputAudioStream;
+            }
+        }
+
+        private async Task ProcessConversationUpdatesAsync(bool singleResponse)
+        {
             await foreach (ConversationUpdate update in _realtimeConversationClientSession.ReceiveUpdatesAsync())
             {
                 // Notification indicating the start of the conversation session.
@@ -90,6 +132,8 @@ namespace railwaychatbot.AIEngine.Impl
                         }
 
                         value.Write(deltaUpdate.AudioBytes);
+                        // HERE SEND THE AUDIO BYTES
+                        OnStreamingDeltaResponse?.Invoke(deltaUpdate.AudioBytes);
                     }
 
                     // Handle function arguments.
@@ -110,6 +154,13 @@ namespace railwaychatbot.AIEngine.Impl
                 {
                     Console.WriteLine();
                     Console.WriteLine($"  -- Item streaming finished, item_id={itemStreamingFinishedUpdate.ItemId}");
+
+                    if (itemStreamingFinishedUpdate.FunctionName == tool_finish_conversation_name)
+                    {
+                        Console.WriteLine($" <<< Finish tool invoked -- ending conversation!");
+                        _isProcessing = false;
+                        break;
+                    }
 
                     // If an item is a function call, invoke a function with provided arguments.
                     if (itemStreamingFinishedUpdate.FunctionCallId is not null)
@@ -153,6 +204,8 @@ namespace railwaychatbot.AIEngine.Impl
 
                         Console.WriteLine();
                     }
+
+                    
                 }
 
                 // Notification indicating the completion of transcription from input audio.
@@ -166,7 +219,8 @@ namespace railwaychatbot.AIEngine.Impl
                 // Notification about completed model response turn.
                 if (update is ConversationResponseFinishedUpdate turnFinishedUpdate)
                 {
-                    Console.WriteLine($"  -- Model turn generation finished. Status: {turnFinishedUpdate.Status}");
+                    
+                    Console.WriteLine($"  -- Model turn generation finished - Status: {turnFinishedUpdate.Status}");
 
                     // If the created session items contain a function name, it indicates a function call result has been provided,
                     // and response updates can begin.
@@ -179,29 +233,29 @@ namespace railwaychatbot.AIEngine.Impl
                     // Otherwise, the model's response is provided, signaling that updates can be stopped.
                     else
                     {
-                        break;
+                        if (singleResponse)                        
+                            break;
                     }
+                    
                 }
 
                 // Notification about error in conversation session.
                 if (update is ConversationErrorUpdate errorUpdate)
                 {
                     Console.WriteLine();
-                    Console.WriteLine($"ERROR: {errorUpdate.Message}");
+                    Console.WriteLine();
+                    Console.WriteLine($" <<< ERROR: {errorUpdate.Message}");
+                    Console.WriteLine(errorUpdate.GetRawContent().ToString());
+                    _isProcessing = false;
                     break;
                 }
+
+                
             }
 
-            // Output the size of received audio data and dispose streams.
-            foreach ((string itemId, Stream outputAudioStream) in outputAudioStreamsById)
-            {
-                Console.WriteLine($"Raw audio output for {itemId}: {outputAudioStream.Length} bytes");
-
-                yield return outputAudioStream;
-            }
         }
 
-        private async Task<RealtimeConversationSession> GetConfiguredClientForAzureOpenAIWithKey(
+        private async Task<RealtimeConversationSession> GetConfiguredClientForAzureOpenAIWithKeyAsync(
         string aoaiEndpoint,
         string? aoaiDeployment,
         string aoaiApiKey)
@@ -227,11 +281,21 @@ namespace railwaychatbot.AIEngine.Impl
                 },
             };
 
+            // We'll add a simple function tool that enables the model to interpret user input to figure out when it
+            // might be a good time to stop the interaction.
+            ConversationFunctionTool finishConversationTool = new()
+            {
+                Name = tool_finish_conversation_name,
+                Description = "Invoked when the user says goodbye, expresses being finished, or otherwise seems to want to stop the interaction.",
+                Parameters = BinaryData.FromString("{}")
+            };
+
             // Add plugins/function from kernel as session tools.
             foreach (var tool in ConvertFunctions(_kernel))
             {
                 sessionOptions.Tools.Add(tool);
             }
+            sessionOptions.Tools.Add(finishConversationTool);
 
             // If any tools are available, set tool choice to "auto".
             if (sessionOptions.Tools.Count > 0)

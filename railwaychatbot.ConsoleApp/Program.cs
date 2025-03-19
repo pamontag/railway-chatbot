@@ -62,7 +62,8 @@ Console.WriteLine("5. MotoreOrarioStreamingAgentFunction");
 Console.WriteLine("6. MotoreOrarioGroupStreamingAgentFunction");
 Console.WriteLine("7. MotoreOrarioAudioToTextAgent");
 Console.WriteLine("8. MotoreOrarioAudioToTextStreamingAgent");
-Console.WriteLine("9. MotoreOrarioGroupAgentRealTimeAudio (Not Implemented)");
+Console.WriteLine("9. MotoreOrarioRealTimeAudioSingleResponse");
+Console.WriteLine("10. MotoreOrarioRealTimeAudioContinuosStream");
 var strategy = Console.ReadLine();
 // check if the strategy input is in the enum Strategy
 Strategy selectedStrategy;
@@ -114,7 +115,7 @@ do
         userInput = await aiengine.GetTextFromAudio(bytes);
         Console.WriteLine($"You said: {userInput}");
     }
-    else if (selectedStrategy == Strategy.MotoreOrarioGroupAgentRealTimeAudio)
+    else if (selectedStrategy == Strategy.MotoreOrarioRealTimeAudioSingleResponse)
     {
         Console.WriteLine("Press any key to start recording your voice...");
         Console.ReadKey();
@@ -124,6 +125,10 @@ do
         Console.ReadKey();
         audioStreamBytes = audioService.StopRecording();
         userInput = "RECORDED";
+    }
+    else if (selectedStrategy == Strategy.MotoreOrarioRealTimeAudioContinuosStream)
+    {
+        userInput = "START RECORDING";
     }
     else
     {
@@ -242,15 +247,40 @@ do
                 history.AddMessage(AuthorRole.Assistant, sb.ToString() ?? string.Empty);
                 Console.WriteLine();
                 break;
-            case Strategy.MotoreOrarioGroupAgentRealTimeAudio:
+            case Strategy.MotoreOrarioRealTimeAudioSingleResponse:
                 using (var audioStream = new MemoryStream(audioStreamBytes))
                 {
                     
-                    await foreach (MemoryStream response in airealtimeaudioengine.GetResponseFromAudio(audioStream))
+                    await foreach (MemoryStream response in airealtimeaudioengine.GetSingleResponseFromAudio(audioStream))
                     {
                         speakerOutput.EnqueueForPlayback(new BinaryData(response.ToArray()));
                     }
                 }
+                break;
+            case Strategy.MotoreOrarioRealTimeAudioContinuosStream:               
+
+                airealtimeaudioengine.OnStreamingDeltaResponse += (BinaryData audioBytes) =>
+                {
+                    // Execute speakerOutput.EnqueueForPlayback with the stream
+                    speakerOutput.EnqueueForPlayback(audioBytes);
+                };
+
+                _ = Task.Run(async () =>
+                {
+                    // NEED A BUTTON FOR START AND STOP RECORDING OR STOP LISTENING WHEN AUDIO IS OUTPUT
+                    using MicrophoneAudioStream microphoneInput = MicrophoneAudioStream.Start();
+                    Console.WriteLine($" >>> Listening to microphone input");
+                    Console.WriteLine($" >>> (Just tell the app you're done to finish)");
+                    Console.WriteLine();
+                    await airealtimeaudioengine.SendAudioAsync(microphoneInput);
+                });
+
+                while (airealtimeaudioengine.IsProcessing())
+                {
+                    await Task.Delay(100); // Adjust the delay as needed
+                    
+                }
+                userInput = null;
                 break;
             default:
                 Console.WriteLine("Invalid strategy selected. Please select a valid strategy.");
