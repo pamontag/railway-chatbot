@@ -5,8 +5,8 @@ namespace railwaychatbot.AIEngine
 {
     public interface IAIEngine
     {
-        IAsyncEnumerable<ChatMessageContent> InvokeMotoreOrarioAgent(ChatHistory history);
-        IAsyncEnumerable<StreamingChatMessageContent> InvokeMotoreOrarioAgentStreaming(ChatHistory history);
+        IAsyncEnumerable<ChatMessageContent> InvokeMotoreOrarioAgent(string text, string sessionId);
+        IAsyncEnumerable<StreamingChatMessageContent> InvokeMotoreOrarioAgentStreaming(string text, string sessionId);
         IAsyncEnumerable<ChatMessageContent> InvokeMotoreOrarioGroupAgent(ChatHistory history);
         IAsyncEnumerable<StreamingChatMessageContent> InvokeMotoreOrarioGroupAgentStreaming(ChatHistory history);
         Task<string> GetTextFromAudio(byte[]? audio);

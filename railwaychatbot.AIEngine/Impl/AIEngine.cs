@@ -59,14 +59,33 @@ namespace railwaychatbot.AIEngine.Impl
             _motoreOrarioGroupAgent = CreateMotoreOrarioAgentGroup(_kernel);
         }
 
-        public IAsyncEnumerable<ChatMessageContent> InvokeMotoreOrarioAgent(ChatHistory history)
+        public async IAsyncEnumerable<ChatMessageContent> InvokeMotoreOrarioAgent(string text, string sessionId)
         {
-            return _motoreOrarioAgent.InvokeAsync(history);
+            ChatHistory history = await GetChatHistory(sessionId);
+            var chatMessages = _motoreOrarioAgent.InvokeAsync(history);
+            StringBuilder stringBuilder = new StringBuilder();
+            await foreach (var chatMessageContent in chatMessages)
+            {
+                stringBuilder.Append(chatMessageContent.Content);
+                yield return chatMessageContent;
+            }
+            await _cosmosDbService.AddMessageAsync(sessionId, text, "user");
+            await _cosmosDbService.AddMessageAsync(sessionId, stringBuilder.ToString(), "assistant");
         }
 
-        public IAsyncEnumerable<StreamingChatMessageContent> InvokeMotoreOrarioAgentStreaming(ChatHistory history)
+
+        public async IAsyncEnumerable<StreamingChatMessageContent> InvokeMotoreOrarioAgentStreaming(string text, string sessionId)
         {
-            return _motoreOrarioAgent.InvokeStreamingAsync(history);
+            ChatHistory history = await GetChatHistory(sessionId);
+            var chatMessages = _motoreOrarioAgent.InvokeStreamingAsync(history);
+            StringBuilder stringBuilder = new StringBuilder();
+            await foreach (var chatMessageContent in chatMessages)
+            {
+                stringBuilder.Append(chatMessageContent.Content);
+                yield return chatMessageContent;
+            }
+            await _cosmosDbService.AddMessageAsync(sessionId, text, "user");
+            await _cosmosDbService.AddMessageAsync(sessionId, stringBuilder.ToString(), "assistant");
         }
 
         public IAsyncEnumerable<ChatMessageContent> InvokeMotoreOrarioGroupAgent(ChatHistory history)
@@ -117,6 +136,25 @@ namespace railwaychatbot.AIEngine.Impl
         public bool IsGroupChatComplete()
         {
             return _motoreOrarioGroupAgent.IsComplete;
+        }
+
+        private async Task<ChatHistory> GetChatHistory(string sessionId)
+        {
+            var messages = await _cosmosDbService.GetMessagesBySessionIdAsync(sessionId);
+            ChatHistory history = new ChatHistory();
+            foreach (var message in messages)
+            {
+                if (message.role == "user")
+                {
+                    history.AddUserMessage(message.message);
+                }
+                else if (message.role == "assistant")
+                {
+                    history.AddAssistantMessage(message.message);
+                }
+            }
+
+            return history;
         }
 
         private ChatCompletionAgent CreateMotoreOrarioAgent(Kernel kernel)

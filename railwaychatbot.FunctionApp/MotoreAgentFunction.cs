@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.SemanticKernel.ChatCompletion;
 using railwaychatbot.AIEngine;
 using railwaychatbot.AIEngine.Impl;
+using railwaychatbot.AIEngine.Model;
 using System.Net;
 using System.Text.Json;
 // https://stackoverflow.com/questions/77994075/return-iasyncenumerable-with-azure-functions-on-net-8-isolated
@@ -38,13 +39,12 @@ namespace railwaychatbot.FunctionApp
             ArgumentException.ThrowIfNullOrEmpty(apiKey, nameof(apiKey)); 
 
             string requestBody = await new StreamReader(req.Body).ReadToEndAsync();
-            var history = JsonSerializer.Deserialize<ChatHistory>(requestBody);
+            var message = JsonSerializer.Deserialize<ChatMessage>(requestBody);
 
             _logger.LogInformation(requestBody);
 
-             
-
-            var data = _aiEngine.InvokeMotoreOrarioAgentStreaming(history);
+            // da correggere la chiamata
+            var data = _aiEngine.InvokeMotoreOrarioAgentStreaming(message.message, message.sessionid);
 
             var response = req.HttpContext.Response;
             response.StatusCode = (int)HttpStatusCode.OK;

@@ -31,6 +31,7 @@ using Microsoft.Extensions.Hosting;
 using static System.Net.Mime.MediaTypeNames;
 using Microsoft.Azure.Cosmos;
 using Azure.AI.OpenAI;
+using railwaychatbot.AIEngine.Model;
 #pragma warning disable SKEXP0001
 #pragma warning disable CS8602 // Dereference of a possibly null reference.
 
@@ -77,9 +78,9 @@ class Program
         services.AddLogging(services => services.AddConsole().SetMinimumLevel(LogLevel.Warning));
         services.AddSingleton(serviceProvider => new CosmosClient(hostContext.Configuration["COSMOS_DB_CONNECTION_STRING"]));
         services.AddSingleton(serviceProvider => new AzureOpenAIClient(new Uri(hostContext.Configuration["AZURE_OPENAI_ENDPOINT"]!), new AzureKeyCredential(hostContext.Configuration["AZURE_OPENAI_API_KEY"]!)));
-        services.AddSingleton<IAIEngine, AIEngine>();
-        services.AddSingleton<IAIRealTimeAudioEngine, AIRealTimeAudioEngine>();
-        services.AddSingleton<ICosmosDbService, CosmosDbService>();
+        services.AddScoped<IAIEngine, AIEngine>();
+        services.AddScoped<IAIRealTimeAudioEngine, AIRealTimeAudioEngine>();
+        services.AddScoped<ICosmosDbService, CosmosDbService>();
         bool enableOT;
         if (bool.TryParse(hostContext.Configuration["ENABLE_OPENTELEMETRY_TRACING"]!, out enableOT) && enableOT)
         {
@@ -163,6 +164,7 @@ public class Executor
         HttpClient httpClient = new HttpClient();
 
         // Create a history store the conversation
+        var sessionId = Guid.NewGuid().ToString();
         var history = new ChatHistory();
         SpeakerOutput speakerOutput = new();
         AudioService audioService = new AudioService();
@@ -214,7 +216,7 @@ public class Executor
                 switch (selectedStrategy)
                 {
                     case Strategy.MotoreOrarioAgent:
-                        await foreach (ChatMessageContent response in _aiengine.InvokeMotoreOrarioAgent(history))
+                        await foreach (ChatMessageContent response in _aiengine.InvokeMotoreOrarioAgent(userInput, sessionId))
                         {
                             Console.WriteLine($"{response.Content}");
 
@@ -223,7 +225,7 @@ public class Executor
                         }
                         break;
                     case Strategy.MotoreOrarioStreamingAgent:
-                        await foreach (StreamingChatMessageContent response in _aiengine.InvokeMotoreOrarioAgentStreaming(history))
+                        await foreach (StreamingChatMessageContent response in _aiengine.InvokeMotoreOrarioAgentStreaming(userInput, sessionId))
                         {
                             Console.Write($"{response.Content}");
                             sb.Append(response.Content);
@@ -256,7 +258,8 @@ public class Executor
                         break;
                     case Strategy.MotoreOrarioStreamingAgentFunction:
                         var message = new HttpRequestMessage(HttpMethod.Post, functionMotoreAgentEndpoint);
-                        message.Content = new StringContent(JsonSerializer.Serialize(history), Encoding.UTF8, "application/json");
+                        var chatMessage = new ChatMessage() { sessionid = sessionId, message = userInput, role = "user" };
+                        message.Content = new StringContent(JsonSerializer.Serialize(chatMessage), Encoding.UTF8, "application/json");
                         var httpresponse = await httpClient.SendAsync(message, HttpCompletionOption.ResponseHeadersRead);
                         using (var responseStream = await httpresponse.Content.ReadAsStreamAsync())
                         using (var streamReader = new StreamReader(responseStream))
@@ -276,7 +279,7 @@ public class Executor
                         Console.WriteLine();
                         break;
                     case Strategy.MotoreOrarioGroupStreamingAgentFunction:
-                        var messageGroup = new HttpRequestMessage(HttpMethod.Post, functionMotoreAgentGroupEndpoint);
+                        var messageGroup = new HttpRequestMessage(HttpMethod.Post, functionMotoreAgentGroupEndpoint);                        
                         messageGroup.Content = new StringContent(JsonSerializer.Serialize(history), Encoding.UTF8, "application/json");
                         var httpresponseGroup = await httpClient.SendAsync(messageGroup, HttpCompletionOption.ResponseHeadersRead);
                         using (var responseStream = await httpresponseGroup.Content.ReadAsStreamAsync())
@@ -297,7 +300,7 @@ public class Executor
                         Console.WriteLine();
                         break;
                     case Strategy.MotoreOrarioAudioToTextAgent:
-                        await foreach (ChatMessageContent response in _aiengine.InvokeMotoreOrarioAgent(history))
+                        await foreach (ChatMessageContent response in _aiengine.InvokeMotoreOrarioAgent(userInput, sessionId))
                         {
                             Console.WriteLine($"{response.Content}");
                             var audioStream = await _aiengine.GetAudioFromText(response.Content);
@@ -307,7 +310,7 @@ public class Executor
                         }
                         break;
                     case Strategy.MotoreOrarioAudioToTextStreamingAgent:
-                        await foreach (StreamingChatMessageContent response in _aiengine.InvokeMotoreOrarioGroupAgentStreaming(history))
+                        await foreach (StreamingChatMessageContent response in _aiengine.InvokeMotoreOrarioAgentStreaming(userInput, sessionId))
                         {
                             Console.Write($"{response.Content}");
                             sb.Append(response.Content);
