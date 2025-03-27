@@ -1,4 +1,5 @@
 ﻿using Azure.AI.OpenAI;
+using Microsoft.Extensions.Configuration;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.Connectors.OpenAI;
 using OpenAI.RealtimeConversation;
@@ -20,10 +21,9 @@ namespace railwaychatbot.AIEngine.Impl
     public class AIRealTimeAudioEngine : IAIRealTimeAudioEngine
     {
         private const string tool_finish_conversation_name = "user_wants_to_finish_conversation";
-        private Kernel _kernel;
+        private readonly Kernel _kernel;
+        private readonly AzureOpenAIClient _azureOpenAIClient;
         private string _modelRealTimeAudioId;
-        private string _endpoint;
-        private string _apiKey;
         private bool _isProcessing = true;
 
         RealtimeConversationSession _realtimeConversationClientSession;
@@ -38,18 +38,18 @@ namespace railwaychatbot.AIEngine.Impl
         // Define the event
         public event StreamingDeltaResponseHandler? OnStreamingDeltaResponse;
 
-        public AIRealTimeAudioEngine(string modelRealTimeAudioId, string endpoint, string apiKey)
+        public AIRealTimeAudioEngine(Kernel kernel, AzureOpenAIClient azureOpenAIClient, IConfiguration config)
         {
-            _modelRealTimeAudioId = modelRealTimeAudioId;
-            _endpoint = endpoint;
-            _apiKey = apiKey;
+            _modelRealTimeAudioId = config["AZURE_OPENAI_REALTIMEAUDIO_DEPLOYMENT_NAME"]!;
+            _kernel = kernel;
+            _azureOpenAIClient = azureOpenAIClient;
         }
 
         public bool IsProcessing() { return _isProcessing; }
 
         public async Task InitSession()
         {
-            _realtimeConversationClientSession = await GetConfiguredClientForAzureOpenAIWithKeyAsync(_endpoint, _modelRealTimeAudioId, _apiKey);
+            _realtimeConversationClientSession = await GetConfiguredClientForAzureOpenAIWithKeyAsync(_modelRealTimeAudioId);
             // Start the background task to process conversation updates
             _ = Task.Run(() => ProcessConversationUpdatesAsync(false));
         }
@@ -255,19 +255,13 @@ namespace railwaychatbot.AIEngine.Impl
 
         }
 
-        private async Task<RealtimeConversationSession> GetConfiguredClientForAzureOpenAIWithKeyAsync(
-        string aoaiEndpoint,
-        string? aoaiDeployment,
-        string aoaiApiKey)
+        private async Task<RealtimeConversationSession> GetConfiguredClientForAzureOpenAIWithKeyAsync(string? aoaiDeployment)
         {
-            AzureOpenAIClient aoaiClient = new(new Uri(aoaiEndpoint), new ApiKeyCredential(aoaiApiKey));
-            // Build kernel.
-            _kernel = Kernel.CreateBuilder().Build();
 
             // Import plugin.
             _kernel.ImportPluginFromType<MotoreOrarioPlugins>();
 
-            var client = aoaiClient.GetRealtimeConversationClient(aoaiDeployment);
+            var client = _azureOpenAIClient.GetRealtimeConversationClient(aoaiDeployment);
             var session = client.StartConversationSessionAsync().Result;
             ConversationSessionOptions sessionOptions = new()
             {

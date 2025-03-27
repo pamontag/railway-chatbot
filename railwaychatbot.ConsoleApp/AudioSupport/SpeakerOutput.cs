@@ -21,13 +21,14 @@ public class SpeakerOutput : IDisposable
         };
         _waveOutEvent = new();
         _waveOutEvent.Init(_waveProvider);
-        _waveOutEvent.Play();
+        _waveOutEvent.Play();        
     }
 
     public void EnqueueForPlayback(BinaryData audioData)
     {
         byte[] buffer = audioData.ToArray();
-        _waveProvider.AddSamples(buffer, 0, buffer.Length);
+        _waveProvider.AddSamples(buffer, 0, buffer.Length);       
+        
     }
 
     public void ClearPlayback()

@@ -47,6 +47,9 @@ public class MicrophoneAudioStream : Stream, IDisposable
 
     public static MicrophoneAudioStream Start() => new();
 
+    public void StartRecording() => _waveInEvent.StartRecording();
+    public void StopRecording() => _waveInEvent.StopRecording();
+
     public override bool CanRead => true;
 
     public override bool CanSeek => false;

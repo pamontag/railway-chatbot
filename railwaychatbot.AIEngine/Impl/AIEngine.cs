@@ -1,5 +1,6 @@
 ﻿using Azure;
 using Azure.AI.OpenAI;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.SemanticKernel;
@@ -30,9 +31,10 @@ namespace railwaychatbot.AIEngine.Impl
     public class AIEngine : IAIEngine
     {
 
-        private Kernel _kernel;
-        private AzureOpenAIClient _azureOpenAiClient;
-        private ChatCompletionAgent _motoreOrarioAgent;
+        private readonly Kernel _kernel;
+        private readonly ICosmosDbService _cosmosDbService;
+        private readonly AzureOpenAIClient _azureOpenAiClient;
+        private readonly ChatCompletionAgent _motoreOrarioAgent;
 
         private AgentGroupChat _motoreOrarioGroupAgent;
         private const string AUDIO_TO_TEXT_MODEL = "whisper";
@@ -45,55 +47,13 @@ namespace railwaychatbot.AIEngine.Impl
 
         private const bool ENABLE_OPENTELEMETRY_TRACING = false;
 
-        public AIEngine(string modelId, string endpoint, string apiKey)
+        public AIEngine(Kernel kernel, ICosmosDbService cosmosDbService, AzureOpenAIClient azureOpenAIClient)
         {
-            // Create the kernel builder with the pointer to Azure OpenAI
-            var builder = Kernel.CreateBuilder().AddAzureOpenAIChatCompletion(modelId, endpoint, apiKey);
-
-            if (ENABLE_OPENTELEMETRY_TRACING)
-            {
-                var resourceBuilder = ResourceBuilder
-                .CreateDefault()
-                .AddService("railwaychatbot.AIEngine.Impl");
-
-                // Enable model diagnostics with sensitive data.
-                AppContext.SetSwitch("Microsoft.SemanticKernel.Experimental.GenAI.EnableOTelDiagnosticsSensitive", true);
-
-                var traceProvider = Sdk.CreateTracerProviderBuilder()
-                    .SetResourceBuilder(resourceBuilder)
-                    .AddSource("Microsoft.SemanticKernel*")
-                    .AddConsoleExporter()
-                    .Build();
-
-                var meterProvider = Sdk.CreateMeterProviderBuilder().SetResourceBuilder(resourceBuilder)
-                    .AddMeter("Microsoft.SemanticKernel*")
-                    .AddConsoleExporter()
-                    .Build();
-
-                var loggerFactory = LoggerFactory.Create(builder =>
-                {
-                    // Add OpenTelemetry as a logging provider
-                    builder.AddOpenTelemetry(options =>
-                    {
-                        options.SetResourceBuilder(resourceBuilder);
-                        options.AddConsoleExporter();
-                        // Format log messages. This is default to false.
-                        options.IncludeFormattedMessage = true;
-                        options.IncludeScopes = true;
-                    });
-                    builder.SetMinimumLevel(LogLevel.Information);
-                });
-
-                builder.Services.AddSingleton(loggerFactory);
-            }
-                            
-            // Use the kernel builder to add enterprise components (for logging, in this case)
-            builder.Services.AddLogging(services => services.AddConsole().SetMinimumLevel(LogLevel.Warning));
-
             // Build the kernel
-            _kernel = builder.Build();
+            _kernel = kernel;
+            _cosmosDbService = cosmosDbService;
 
-            _azureOpenAiClient = new AzureOpenAIClient(new Uri(endpoint), new AzureKeyCredential(apiKey));
+            _azureOpenAiClient = azureOpenAIClient;
 
             _motoreOrarioAgent = CreateMotoreOrarioAgent(_kernel);
             _motoreOrarioGroupAgent = CreateMotoreOrarioAgentGroup(_kernel);

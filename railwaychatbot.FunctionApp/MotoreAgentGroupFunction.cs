@@ -13,10 +13,12 @@ namespace railwaychatbot.FunctionApp
     public class MotoreAgentGroupFunction
     {
         private readonly ILogger<MotoreAgentGroupFunction> _logger;
+        private readonly IAIEngine _aiEngine;
 
-        public MotoreAgentGroupFunction(ILogger<MotoreAgentGroupFunction> logger)
+        public MotoreAgentGroupFunction(ILogger<MotoreAgentGroupFunction> logger, IAIEngine aiengine)
         {
             _logger = logger;
+            _aiEngine = aiengine;
         }
 
         [Function("MotoreAgentGroupFunction")]
@@ -39,14 +41,13 @@ namespace railwaychatbot.FunctionApp
 
             _logger.LogInformation(requestBody);
 
-
-            IAIEngine aiengine = new railwaychatbot.AIEngine.Impl.AIEngine(modelId,   endpoint, apiKey);
+             
             var response = req.HttpContext.Response;
             response.StatusCode = (int)HttpStatusCode.OK;
             response.ContentType = "application/json";
             try
             {
-                var data = aiengine.InvokeMotoreOrarioGroupAgentStreaming(history);
+                var data = _aiEngine.InvokeMotoreOrarioGroupAgentStreaming(history);
                 await foreach (var chunk in data)
                 {
                     await response.WriteAsync($"{JsonSerializer.Serialize(chunk)}\r\n");

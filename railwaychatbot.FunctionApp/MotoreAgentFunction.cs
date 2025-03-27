@@ -14,10 +14,12 @@ namespace railwaychatbot.FunctionApp
     public class MotoreAgentFunction
     {
         private readonly ILogger<MotoreAgentFunction> _logger;
+        private readonly IAIEngine _aiEngine;
 
-        public MotoreAgentFunction(ILogger<MotoreAgentFunction> logger)
+        public MotoreAgentFunction(ILogger<MotoreAgentFunction> logger, IAIEngine aiEngine)
         {
             _logger = logger;
+            _aiEngine = aiEngine;
         }
 
         [Function("MotoreAgentFunction")]
@@ -40,10 +42,9 @@ namespace railwaychatbot.FunctionApp
 
             _logger.LogInformation(requestBody);
 
+             
 
-            IAIEngine aiengine = new railwaychatbot.AIEngine.Impl.AIEngine(modelId,  endpoint, apiKey);
-
-            var data = aiengine.InvokeMotoreOrarioAgentStreaming(history);
+            var data = _aiEngine.InvokeMotoreOrarioAgentStreaming(history);
 
             var response = req.HttpContext.Response;
             response.StatusCode = (int)HttpStatusCode.OK;
