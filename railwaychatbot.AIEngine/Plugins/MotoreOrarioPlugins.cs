@@ -13,8 +13,6 @@ namespace railwaychatbot.AIEngine.Plugins
     {
 
         // Mock Data
-        private readonly DateTime today = DateTime.Now;
-
         private readonly List<StationModel> _stations = new()
         {
             new StationModel { City = "Milano", Id = 1, Name = "Milano Centrale" },
@@ -47,14 +45,6 @@ namespace railwaychatbot.AIEngine.Plugins
             new WeatherModel { City = "Bologna", Temperature = 23, Weather = "Soleggiato" }
         };
 
-        [KernelFunction("get_today")]
-        [Description("Ottieni la data di oggi")]
-        [return: Description("La data di oggi")]
-        public async Task<DateTime> GetTodayAsync()
-        {
-            await Task.CompletedTask;  // This line removes the warning
-            return this.today;
-        }
 
         [KernelFunction("get_stations")]
         [Description("Ottieni la lista delle stazioni ferroviarie e le loro città dove sono presenti")]

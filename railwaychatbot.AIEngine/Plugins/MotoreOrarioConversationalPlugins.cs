@@ -12,7 +12,6 @@ namespace railwaychatbot.AIEngine.Plugins
     internal class MotoreOrarioConversationalPlugins
     {
         // Mock Data
-        private readonly DateTime today = DateTime.Now;
         private readonly List<WeatherModel> _weather = new()
         {
             new WeatherModel { City = "Milano", Temperature = 20, Weather = "Soleggiato" },
@@ -24,14 +23,6 @@ namespace railwaychatbot.AIEngine.Plugins
             new WeatherModel { City = "Bologna", Temperature = 23, Weather = "Soleggiato" }
         };
 
-        [KernelFunction("get_today")]
-        [Description("Ottieni la data di oggi")]
-        [return: Description("La data di oggi")]
-        public async Task<DateTime> GetTodayAsync()
-        {
-            await Task.CompletedTask;  // This line removes the warning
-            return this.today;
-        }
 
         [KernelFunction("get_weather_by_city")]
         [Description("Ottieni le previsioni meteo per una città specifica")]
