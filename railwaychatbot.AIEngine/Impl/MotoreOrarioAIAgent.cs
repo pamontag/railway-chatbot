@@ -149,10 +149,6 @@ namespace railwaychatbot.AIEngine.Impl
             // Convert to a prompt template config
             PromptTemplateConfig templateConfig = KernelFunctionYaml.ToPromptTemplateConfig(generateStoryYaml);
 
-            var executionSettings = new OpenAIPromptExecutionSettings()
-            {
-                FunctionChoiceBehavior = FunctionChoiceBehavior.Auto()
-            };
             // Create agent with Instructions, Name and Description 
             // provided by the template config.
             ChatCompletionAgent agent =
@@ -160,7 +156,7 @@ namespace railwaychatbot.AIEngine.Impl
                 {
                     Kernel = _kernel,
                     // Provide default values for template parameters
-                    Arguments = new KernelArguments(executionSettings)                    
+                    Arguments = new KernelArguments(templateConfig.DefaultExecutionSettings)
                     {
                         { "today", DateTime.Now.ToString("dd/MM/yyyy") }
                     }
