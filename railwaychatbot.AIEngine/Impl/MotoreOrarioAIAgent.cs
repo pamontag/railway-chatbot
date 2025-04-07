@@ -38,7 +38,7 @@ namespace railwaychatbot.AIEngine.Impl
         {
             ChatHistory history = await GetChatHistory(sessionId);
             history.AddUserMessage(text);
-            AgentThread thread = null;
+            AgentThread thread = new ChatHistoryAgentThread();
             var chatMessages = _motoreOrarioAgent.InvokeAsync(history, thread: thread);
             StringBuilder stringBuilder = new StringBuilder();
             await foreach (AgentResponseItem<ChatMessageContent> chatMessageContent in chatMessages)
@@ -62,7 +62,7 @@ namespace railwaychatbot.AIEngine.Impl
         {
             ChatHistory history = await GetChatHistory(sessionId);
             history.AddUserMessage(text);
-            AgentThread thread = null;
+            AgentThread thread = new ChatHistoryAgentThread();
             var chatMessages = _motoreOrarioAgent.InvokeStreamingAsync(history, thread: thread);
             StringBuilder stringBuilder = new StringBuilder();
             await foreach (AgentResponseItem<StreamingChatMessageContent> chatMessageContent in chatMessages)
