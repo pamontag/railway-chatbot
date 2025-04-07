@@ -26,8 +26,10 @@ builder.Services.AddKernel().AddAzureOpenAIChatCompletion(builder.Configuration[
 builder.Services.AddLogging(services => services.AddConsole().SetMinimumLevel(LogLevel.Warning));
 builder.Services.AddSingleton(serviceProvider => new CosmosClient(builder.Configuration["COSMOS_DB_CONNECTION_STRING"]));
 builder.Services.AddSingleton(serviceProvider => new AzureOpenAIClient(new Uri(builder.Configuration["AZURE_OPENAI_ENDPOINT"]!), new Azure.AzureKeyCredential(builder.Configuration["AZURE_OPENAI_API_KEY"]!)));
-builder.Services.AddSingleton<IAIEngine, AIEngine>();
+builder.Services.AddScoped<IAIEngine, AIEngine>();
+builder.Services.AddScoped<IMotoreOrarioAIAgent, MotoreOrarioAIAgent>();
 builder.Services.AddSingleton<ICosmosDbService, CosmosDbService>();
+
 bool enableOT;
 if (bool.TryParse(builder.Configuration["ENABLE_OPENTELEMETRY_TRACING"]!, out enableOT) && enableOT)
 {

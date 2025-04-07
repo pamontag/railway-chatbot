@@ -10,6 +10,7 @@ using Microsoft.SemanticKernel.ChatCompletion;
 using OpenAI.Audio;
 using Microsoft.SemanticKernel.Connectors.OpenAI;
 using railwaychatbot.AIEngine.Plugins;
+using Microsoft.Extensions.Configuration;
 
 namespace railwaychatbot.AIEngine.Impl
 {
@@ -19,12 +20,13 @@ namespace railwaychatbot.AIEngine.Impl
         private readonly ICosmosDbService _cosmosDbService;
         private readonly AzureOpenAIClient _azureOpenAiClient;
         private readonly ChatCompletionAgent _motoreOrarioAgent;
+        private readonly string _prompt_yaml_path;
         private AgentThread _chatHistoryAgentThread;
 
         private const string AUDIO_TO_TEXT_MODEL = "whisper";
         private const string TEXT_TO_AUDIO_MODEL = "tts";
 
-        public MotoreOrarioAIAgent(Kernel kernel, ICosmosDbService cosmosDbService, AzureOpenAIClient azureOpenAIClient)
+        public MotoreOrarioAIAgent(Kernel kernel, ICosmosDbService cosmosDbService, AzureOpenAIClient azureOpenAIClient, IConfiguration config)
         {
             // Build the kernel
             _kernel = kernel;
@@ -32,7 +34,13 @@ namespace railwaychatbot.AIEngine.Impl
 
             _azureOpenAiClient = azureOpenAIClient;
             _chatHistoryAgentThread = new ChatHistoryAgentThread();
+            _prompt_yaml_path = config["PROMPT_MASTER_AGENT_YAML_PATH"]!;
+            if(string.IsNullOrWhiteSpace(_prompt_yaml_path))
+            {
+                throw new ArgumentNullException("PROMPT_MASTER_AGENT_YAML_PATH", "The path to the YAML file containing the prompt cannot be null or empty.");
+            }
             _motoreOrarioAgent = CreateMotoreOrarioAgent();
+            
         }
 
         public async IAsyncEnumerable<AgentResponseItem<ChatMessageContent>> InvokeMotoreOrarioAgent(string text, string sessionId)
@@ -48,13 +56,7 @@ namespace railwaychatbot.AIEngine.Impl
                 yield return chatMessageContent;
             }
             await _cosmosDbService.AddMessageAsync(sessionId, text, "user");
-            await _cosmosDbService.AddMessageAsync(sessionId, stringBuilder.ToString(), "assistant");
-
-            // Delete the thread if required.
-            //if (thread is not null)
-            //{
-            //    await thread.DeleteAsync();
-            //}
+            await _cosmosDbService.AddMessageAsync(sessionId, stringBuilder.ToString(), "assistant");            
         }
 
 
@@ -72,12 +74,6 @@ namespace railwaychatbot.AIEngine.Impl
             }
             await _cosmosDbService.AddMessageAsync(sessionId, text, "user");
             await _cosmosDbService.AddMessageAsync(sessionId, stringBuilder.ToString(), "assistant");
-
-            // Delete the thread if required.
-            //if (thread is not null)
-            //{
-            //    await thread.DeleteAsync();
-            //}
         }
         public async Task<string> GetTextFromAudio(byte[]? audio)
         {
@@ -135,7 +131,7 @@ namespace railwaychatbot.AIEngine.Impl
             DirectoryInfo baseDirectory = new(AppDomain.CurrentDomain.BaseDirectory);
             projectRoot = baseDirectory.FullName;
             
-            string yamlAgentPath = Path.Combine(projectRoot, "./Agent_Configs/motore_orario_master_agent_template.yaml");
+            string yamlAgentPath = Path.Combine(projectRoot, _prompt_yaml_path);
             // Check for existence of evnFilePath
             if (!File.Exists(yamlAgentPath))
             {
