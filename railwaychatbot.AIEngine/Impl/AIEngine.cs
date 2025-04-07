@@ -62,6 +62,7 @@ namespace railwaychatbot.AIEngine.Impl
         public async IAsyncEnumerable<ChatMessageContent> InvokeMotoreOrarioAgent(string text, string sessionId)
         {
             ChatHistory history = await GetChatHistory(sessionId);
+            history.AddUserMessage(text);
             var chatMessages = _motoreOrarioAgent.InvokeAsync(history);
             StringBuilder stringBuilder = new StringBuilder();
             await foreach (var chatMessageContent in chatMessages)
@@ -77,6 +78,7 @@ namespace railwaychatbot.AIEngine.Impl
         public async IAsyncEnumerable<StreamingChatMessageContent> InvokeMotoreOrarioAgentStreaming(string text, string sessionId)
         {
             ChatHistory history = await GetChatHistory(sessionId);
+            history.AddUserMessage(text);
             var chatMessages = _motoreOrarioAgent.InvokeStreamingAsync(history);
             StringBuilder stringBuilder = new StringBuilder();
             await foreach (var chatMessageContent in chatMessages)

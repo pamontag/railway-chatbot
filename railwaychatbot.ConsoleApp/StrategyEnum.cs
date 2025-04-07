@@ -9,6 +9,7 @@ namespace railwaychatbot.ConsoleApp
 
     public enum Strategy
     {
+        MotoreOrarioOfficialAgent = 0,
         MotoreOrarioAgent = 1,
         MotoreOrarioStreamingAgent = 2,
         MotoreOrarioGroupAgent = 3,

@@ -81,6 +81,7 @@ class Program
         services.AddScoped<IAIEngine, AIEngine>();
         services.AddScoped<IAIRealTimeAudioEngine, AIRealTimeAudioEngine>();
         services.AddScoped<ICosmosDbService, CosmosDbService>();
+        services.AddScoped<IMotoreOrarioAIAgent, MotoreOrarioAIAgent>();    
         bool enableOT;
         if (bool.TryParse(hostContext.Configuration["ENABLE_OPENTELEMETRY_TRACING"]!, out enableOT) && enableOT)
         {
@@ -126,11 +127,13 @@ public class Executor
 {
     private readonly IAIEngine _aiengine;
     private readonly IAIRealTimeAudioEngine _airealtimeaudioengine;
+    private readonly IMotoreOrarioAIAgent _motoreOrarioAIAgent;
 
-    public Executor(IAIEngine aiengine, IAIRealTimeAudioEngine airealtimeaudioengine)
+    public Executor(IAIEngine aiengine, IAIRealTimeAudioEngine airealtimeaudioengine, IMotoreOrarioAIAgent motoreOrarioAIAgent)
     {
         _aiengine = aiengine ?? throw new ArgumentNullException(nameof(aiengine));
         _airealtimeaudioengine = airealtimeaudioengine ?? throw new ArgumentNullException(nameof(airealtimeaudioengine));
+        _motoreOrarioAIAgent = motoreOrarioAIAgent ?? throw new ArgumentNullException(nameof(motoreOrarioAIAgent));
     }
 
     public async Task Execute()
@@ -139,6 +142,7 @@ public class Executor
         Console.WriteLine("Application starts");
 
         Console.WriteLine("Select the strategy to use:");
+        Console.WriteLine("0. MotoreOrarioOfficialAgent");
         Console.WriteLine("1. MotoreOrarioAgent");
         Console.WriteLine("2. MotoreOrarioStreamingAgent");
         Console.WriteLine("3. MotoreOrarioGroupAgent");
@@ -215,6 +219,16 @@ public class Executor
 
                 switch (selectedStrategy)
                 {
+                    case Strategy.MotoreOrarioOfficialAgent:
+                        await foreach(var response in _motoreOrarioAIAgent.InvokeMotoreOrarioAgentStreaming(userInput, sessionId))
+                        {
+                            Console.Write($"{response.Message}");
+                            sb.Append(response.Message);
+                        }
+                        // Add the message from the agent to the chat history
+                        history.AddMessage(AuthorRole.Assistant, sb.ToString() ?? string.Empty);
+                        Console.WriteLine();
+                        break;
                     case Strategy.MotoreOrarioAgent:
                         await foreach (ChatMessageContent response in _aiengine.InvokeMotoreOrarioAgent(userInput, sessionId))
                         {
