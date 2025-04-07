@@ -19,6 +19,7 @@ namespace railwaychatbot.AIEngine.Impl
         private readonly ICosmosDbService _cosmosDbService;
         private readonly AzureOpenAIClient _azureOpenAiClient;
         private readonly ChatCompletionAgent _motoreOrarioAgent;
+        private AgentThread _chatHistoryAgentThread;
 
         private const string AUDIO_TO_TEXT_MODEL = "whisper";
         private const string TEXT_TO_AUDIO_MODEL = "tts";
@@ -30,7 +31,7 @@ namespace railwaychatbot.AIEngine.Impl
             _cosmosDbService = cosmosDbService;
 
             _azureOpenAiClient = azureOpenAIClient;
-
+            _chatHistoryAgentThread = new ChatHistoryAgentThread();
             _motoreOrarioAgent = CreateMotoreOrarioAgent();
         }
 
@@ -38,23 +39,22 @@ namespace railwaychatbot.AIEngine.Impl
         {
             ChatHistory history = await GetChatHistory(sessionId);
             history.AddUserMessage(text);
-            AgentThread thread = new ChatHistoryAgentThread();
-            var chatMessages = _motoreOrarioAgent.InvokeAsync(history, thread: thread);
+            var chatMessages = _motoreOrarioAgent.InvokeAsync(history, thread: _chatHistoryAgentThread);
             StringBuilder stringBuilder = new StringBuilder();
             await foreach (AgentResponseItem<ChatMessageContent> chatMessageContent in chatMessages)
             {
                 stringBuilder.Append(chatMessageContent);
-                thread = chatMessageContent.Thread;
+                _chatHistoryAgentThread = chatMessageContent.Thread;
                 yield return chatMessageContent;
             }
             await _cosmosDbService.AddMessageAsync(sessionId, text, "user");
             await _cosmosDbService.AddMessageAsync(sessionId, stringBuilder.ToString(), "assistant");
 
             // Delete the thread if required.
-            if (thread is not null)
-            {
-                await thread.DeleteAsync();
-            }
+            //if (thread is not null)
+            //{
+            //    await thread.DeleteAsync();
+            //}
         }
 
 
@@ -62,23 +62,22 @@ namespace railwaychatbot.AIEngine.Impl
         {
             ChatHistory history = await GetChatHistory(sessionId);
             history.AddUserMessage(text);
-            AgentThread thread = new ChatHistoryAgentThread();
-            var chatMessages = _motoreOrarioAgent.InvokeStreamingAsync(history, thread: thread);
+            var chatMessages = _motoreOrarioAgent.InvokeStreamingAsync(history, thread: _chatHistoryAgentThread);
             StringBuilder stringBuilder = new StringBuilder();
             await foreach (AgentResponseItem<StreamingChatMessageContent> chatMessageContent in chatMessages)
             {
                 stringBuilder.Append(chatMessageContent.Message);
-                thread = chatMessageContent.Thread;
+                _chatHistoryAgentThread = chatMessageContent.Thread;
                 yield return chatMessageContent;
             }
             await _cosmosDbService.AddMessageAsync(sessionId, text, "user");
             await _cosmosDbService.AddMessageAsync(sessionId, stringBuilder.ToString(), "assistant");
 
             // Delete the thread if required.
-            if (thread is not null)
-            {
-                await thread.DeleteAsync();
-            }
+            //if (thread is not null)
+            //{
+            //    await thread.DeleteAsync();
+            //}
         }
         public async Task<string> GetTextFromAudio(byte[]? audio)
         {
