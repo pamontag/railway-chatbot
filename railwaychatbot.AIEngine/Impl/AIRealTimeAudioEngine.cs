@@ -3,7 +3,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.Connectors.OpenAI;
 using OpenAI.RealtimeConversation;
-using railwaychatbot.AIEngine.Plugins;
+using railwaychatbot.AIEngine.Plugins.Impl;
 using System;
 using System.ClientModel;
 using System.Collections.Generic;
@@ -259,7 +259,7 @@ namespace railwaychatbot.AIEngine.Impl
         {
 
             // Import plugin.
-            _kernel.ImportPluginFromType<MotoreOrarioPlugins>();
+            _kernel.ImportPluginFromType<MotoreOrarioMockPlugins>();
 
             var client = _azureOpenAIClient.GetRealtimeConversationClient(aoaiDeployment);
             var session = client.StartConversationSessionAsync().Result;

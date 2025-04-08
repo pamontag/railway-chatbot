@@ -15,7 +15,6 @@ using Microsoft.SemanticKernel.ChatCompletion;
 using Microsoft.SemanticKernel.Connectors.AzureOpenAI;
 
 using DotNetEnv;
-using railwaychatbot.AIEngine.Plugins;
 using railwaychatbot.AIEngine;
 using railwaychatbot.AIEngine.Impl;
 using railwaychatbot.ConsoleApp;
@@ -32,6 +31,8 @@ using static System.Net.Mime.MediaTypeNames;
 using Microsoft.Azure.Cosmos;
 using Azure.AI.OpenAI;
 using railwaychatbot.AIEngine.Model;
+using railwaychatbot.AIEngine.Plugins.Impl;
+using railwaychatbot.AIEngine.Plugins;
 #pragma warning disable SKEXP0001
 #pragma warning disable CS8602 // Dereference of a possibly null reference.
 
@@ -74,11 +75,13 @@ class Program
 
     private static void ConfigureServices(HostBuilderContext hostContext, IServiceCollection services)
     {
-        services.AddKernel().AddAzureOpenAIChatCompletion(hostContext.Configuration["AZURE_OPENAI_CHAT_DEPLOYMENT_NAME"]!, hostContext.Configuration["AZURE_OPENAI_ENDPOINT"]!, hostContext.Configuration["AZURE_OPENAI_API_KEY"]!);
+        services
+            .AddKernel()
+            .AddAzureOpenAIChatCompletion(hostContext.Configuration["AZURE_OPENAI_CHAT_DEPLOYMENT_NAME"]!, hostContext.Configuration["AZURE_OPENAI_ENDPOINT"]!, hostContext.Configuration["AZURE_OPENAI_API_KEY"]!);       
         services.AddLogging(services => services.AddConsole().SetMinimumLevel(LogLevel.Warning));
         services.AddSingleton(serviceProvider => new CosmosClient(hostContext.Configuration["COSMOS_DB_CONNECTION_STRING"]));
         services.AddSingleton(serviceProvider => new AzureOpenAIClient(new Uri(hostContext.Configuration["AZURE_OPENAI_ENDPOINT"]!), new AzureKeyCredential(hostContext.Configuration["AZURE_OPENAI_API_KEY"]!)));
-        services.AddScoped<IAIEngine, AIEngine>();
+        services.AddScoped<IAIEngine, AIEngine>();        
         services.AddScoped<IAIRealTimeAudioEngine, AIRealTimeAudioEngine>();
         services.AddScoped<ICosmosDbService, CosmosDbService>();
         services.AddScoped<IMotoreOrarioAIAgent, MotoreOrarioAIAgent>();    

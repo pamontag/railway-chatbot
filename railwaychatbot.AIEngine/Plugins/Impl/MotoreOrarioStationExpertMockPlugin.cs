@@ -7,9 +7,9 @@ using System.Text;
 using System.Threading.Tasks;
 using railwaychatbot.AIEngine.Model;
 
-namespace railwaychatbot.AIEngine.Plugins
+namespace railwaychatbot.AIEngine.Plugins.Impl
 {
-    internal class MotoreOrarioStationExpertPlugins
+    internal class MotoreOrarioStationExpertMockPlugin
     {
         private readonly List<StationModel> _stations = new()
         {
@@ -29,7 +29,7 @@ namespace railwaychatbot.AIEngine.Plugins
         public async Task<List<StationModel>> GetStations()
         {
             await Task.CompletedTask;  // This line removes the warning
-            return this._stations;
+            return _stations;
         }
     }
 }

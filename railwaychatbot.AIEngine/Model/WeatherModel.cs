@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace railwaychatbot.AIEngine.Model
 {
-    internal class WeatherModel
+    public class WeatherModel
     {
         public WeatherModel() { }
 

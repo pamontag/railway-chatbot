@@ -11,6 +11,7 @@ using OpenAI.Audio;
 using Microsoft.SemanticKernel.Connectors.OpenAI;
 using railwaychatbot.AIEngine.Plugins;
 using Microsoft.Extensions.Configuration;
+using railwaychatbot.AIEngine.Plugins.Impl;
 
 namespace railwaychatbot.AIEngine.Impl
 {
@@ -121,11 +122,11 @@ namespace railwaychatbot.AIEngine.Impl
         }
 
         private ChatCompletionAgent CreateMotoreOrarioAgent()
-        {            
+        {
 
             // Initialize plug-in from type
-            // agentKernel.CreatePluginFromType<MotoreOrarioPlugins>();
-            _kernel.Plugins.AddFromType<MotoreOrarioPlugins>();
+            // Possibly feature: inject plugins asking for tools and language from a slave agent and pass parameters to the master agent
+            _kernel.Plugins.AddFromType<MotoreOrarioMockPlugins>();
 
             string projectRoot;
             DirectoryInfo baseDirectory = new(AppDomain.CurrentDomain.BaseDirectory);

@@ -19,7 +19,7 @@ using OpenTelemetry.Logs;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
-using railwaychatbot.AIEngine.Plugins;
+using railwaychatbot.AIEngine.Plugins.Impl;
 using System.ClientModel;
 using System.Text;
 #pragma warning disable SKEXP0110
@@ -166,7 +166,7 @@ namespace railwaychatbot.AIEngine.Impl
 
             // Initialize plug-in from type
             // agentKernel.CreatePluginFromType<MotoreOrarioPlugins>();
-            agentKernel.Plugins.AddFromType<MotoreOrarioPlugins>();
+            agentKernel.Plugins.AddFromType<MotoreOrarioMockPlugins>();
 
             // Create the agent
             return
@@ -192,9 +192,9 @@ namespace railwaychatbot.AIEngine.Impl
             Kernel stationExpertAgentKernel = kernel.Clone();
             Kernel trainScheduleExpertAgentKernel = kernel.Clone();
 
-            conversationAgentKernel.Plugins.AddFromType<MotoreOrarioConversationalPlugins>();
-            stationExpertAgentKernel.Plugins.AddFromType<MotoreOrarioStationExpertPlugins>();
-            trainScheduleExpertAgentKernel.Plugins.AddFromType<MotoreOrarioTrainScheduleExpertPlugin>();
+            conversationAgentKernel.Plugins.AddFromType<MotoreOrarioWeatherMockPlugin>();
+            stationExpertAgentKernel.Plugins.AddFromType<MotoreOrarioStationExpertMockPlugin>();
+            trainScheduleExpertAgentKernel.Plugins.AddFromType<MotoreOrarioTrainScheduleExpertMockPlugin>();
 
             var kernelArguments = new KernelArguments(
                     new OpenAIPromptExecutionSettings()
